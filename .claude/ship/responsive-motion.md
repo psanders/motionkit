@@ -1,7 +1,7 @@
 # Ship checkpoint — responsive-motion
 
 Started: 2026-08-13
-Current stage: 5 — Sync (gated, awaiting user confirmation)
+Current stage: 6 — Archive (gated, awaiting user confirmation)
 
 **Scope:** Phase 3a of MotionKit: a semantic scene-level `motion` field (`horizontal_pan`/`vertical_pan`/`zoom`/`static` + optional `focalPoint`) driving real crop/pan/zoom render math based on the source asset's actual (ffprobe-probed) dimensions; `frame` extended from `browser`-only to `browser`/`phone`; the `1:1` (1080x1080) format. Modifies `video-spec`/`video-validation`/`video-rendering`/`brand-system`. First of two sequential Phase 3 changes — `overlays-pip` (webcam-bubble/PIP) follows after this one ships.
 
@@ -14,8 +14,8 @@ Current stage: 5 — Sync (gated, awaiting user confirmation)
 | 2   | Spec reconcile  | done        | No Pencil design to reconcile against; proposal/specs/design/tasks authored together, already pass `openspec validate`.                                                                                                                                                                                                                                                           |
 | 3   | Build           | done        | Implemented directly in the main session after 2 background build-agent stalls (see log). All 23 tasks.md boxes checked; motion field, expanded frame/format enums, crop/pan/zoom math, ffprobe dimension probing, 1:1 composition, phoneFrameStyle.                                                                                                                              |
 | 4   | Test            | done        | 148/148 tests passing (core 140, cli 7, mcp 1); lint + typecheck clean. Pan-direction tests verify actual visible source region (whole-frame color-channel comparison via a new split-color fixture type), not just render success. Both prior example specs confirmed unchanged; new motion-spec.json example added and manually smoke-tested (1080x1080 confirmed via ffprobe). |
-| 5   | Sync            | in-progress | Awaiting user go-ahead to promote deltas into openspec/specs/** and commit.                                                                                                                                                                                                                                                                                                       |
-| 6   | Archive         | pending     |                                                                                                                                                                                                                                                                                                                                                                                   |
+| 5   | Sync            | done        | 4 modified main specs (video-spec, video-validation, video-rendering, brand-system, including 2 requirement renames); `openspec validate --specs` passes 5/5.                                                                                                                                                                                                                     |
+| 6   | Archive         | in-progress | Awaiting user go-ahead to archive the change out of openspec/changes/.                                                                                                                                                                                                                                                                                                            |
 
 Status values: `pending` · `in-progress` · `done` · `skipped` (with reason).
 
@@ -23,6 +23,7 @@ Status values: `pending` · `in-progress` · `done` · `skipped` (with reason).
 
 Newest first. One line per meaningful decision or stage transition.
 
+- 2026-08-13 — Synced 4 deltas into openspec/specs/** as modified main specs; `openspec validate --specs` passes 5/5. Committed the implementation (5eddc49). Entering stage 6 (Archive), gated on user confirmation.
 - 2026-08-13 — Implementation complete (all 23 tasks checked off): schema/validation/brand changes, `cropTransform.ts` (cover-scale/slack/pan/zoom math), `probeAssetDimensions.ts` (ffprobe, cached), Timeline.tsx wiring, 1:1 composition. Full suite green (148/148). Also added `.claude/worktrees/` to .gitignore (was untracked, would have swept in unrelated in-progress work from a separate, explicitly-uncommitted task). Entering stage 5 (Sync), gated on user confirmation.
 - 2026-08-13 — Second build agent attempt also stalled (600s watchdog), again during research (test-infra patterns this time) before writing code. Working tree reconfirmed clean; no lingering processes. Two consecutive stalls on the same phase — switching to implementing this change directly in the main session instead of a third background retry.
 - 2026-08-13 — First build agent attempt stalled (600s watchdog, no progress) while researching Zod v4 discriminated-union issue shapes, before writing any code. Working tree confirmed clean (0 files touched, 0 tasks.md boxes checked) — safe restart. Relaunching with tighter guidance to model the new `motion` discriminated union directly on the existing `aRollSceneSchema`/`bRollSceneSchema` pattern instead of re-deriving Zod behavior from scratch.
