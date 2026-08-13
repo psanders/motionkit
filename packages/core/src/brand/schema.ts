@@ -84,6 +84,14 @@ const browserFrameStyleSchema = z.object({
   shadow: z.string()
 });
 
+/** How `scene.frame === "phone"`'s chrome is styled. Same shape as `browserFrameStyleSchema` — a simplified phone chrome (a colored top strip, border-radius, shadow), not a detailed device bezel. */
+const phoneFrameStyleSchema = z.object({
+  chromeColor: z.string().min(1),
+  chromeHeightPx: z.number().positive(),
+  borderRadius: z.number().nonnegative(),
+  shadow: z.string()
+});
+
 /** How a call-to-action would be styled. Validated/loaded only — no CTA scene type exists yet (see design.md Non-Goals). */
 const ctaStyleSchema = z.object({
   backgroundColor: z.string().min(1),
@@ -104,6 +112,7 @@ export const brandSchema = z.object({
   titleStyle: titleStyleSchema,
   lowerThirdStyle: lowerThirdStyleSchema,
   browserFrameStyle: browserFrameStyleSchema,
+  phoneFrameStyle: phoneFrameStyleSchema,
   ctaStyle: ctaStyleSchema,
   defaultTransitionDurationSeconds: z.number().positive()
 });

@@ -12,6 +12,10 @@ dist/
 packages/cli/examples/assets/
 packages/cli/examples/*.mp4
 
+# Isolated agent worktrees (local scratch space, never committed as part of
+# whichever change happens to be in flight when one is created)
+.claude/worktrees/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

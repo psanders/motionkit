@@ -24,25 +24,34 @@ Monorepo (npm workspaces + Lerna), three packages:
   classes, pure utils, the validated-function spine (`withErrorHandlingAndValidation.ts` +
   `ValidationError.ts`), and the MotionKit engine itself:
   - `src/brand/` — the Brand schema (`brandSchema`: colors, typography, logo, spacing,
-    border-radius, shadows, and per-primitive style tokens), and a registry (`findBrand`,
-    non-throwing; `loadBrand`, throwing) that resolves a brand id to its parsed, validated
-    document. A brand lives in its own `<id>.brand.json` file, checked at `<specDir>/brands/`
-    first, then falling back to the package's built-in `src/brand/brands/` (ships one brand,
-    `"default"`) — never inlined into a Video Specification. A logo's `asset` path resolves
-    relative to the brand file's own directory, not the spec's.
+    border-radius, shadows, and per-primitive style tokens — including `browserFrameStyle` and
+    `phoneFrameStyle`), and a registry (`findBrand`, non-throwing; `loadBrand`, throwing) that
+    resolves a brand id to its parsed, validated document. A brand lives in its own
+    `<id>.brand.json` file, checked at `<specDir>/brands/` first, then falling back to the
+    package's built-in `src/brand/brands/` (ships one brand, `"default"`) — never inlined into a
+    Video Specification. A logo's `asset` path resolves relative to the brand file's own
+    directory, not the spec's.
   - `src/video-spec/` — the versioned Video Specification schema (`videoSpecSchema`), `a_roll`/
     `b_roll` scenes, an optional top-level `brand` id (defaults to `"default"`), and optional
-    scene-level `caption`, `frame` (`"browser"`), and `logo` fields. Transitions support `fade`,
-    `slide-left`, `slide-right`, and `zoom`, each with an optional explicit `duration` —
-    when omitted, the active brand's `defaultTransitionDurationSeconds` applies at render time.
+    scene-level `caption`, `frame` (`"browser"`/`"phone"`), `logo`, and `motion` fields.
+    `motion` is semantic pan/zoom/crop intent (`horizontal_pan`/`vertical_pan`/`zoom`/`static` +
+    an optional `focalPoint`), independent of `frame` — see `src/rendering/cropTransform.ts` for
+    how it becomes an actual crop. Transitions support `fade`, `slide-left`, `slide-right`, and
+    `zoom`, each with an optional explicit `duration` — when omitted, the active brand's
+    `defaultTransitionDurationSeconds` applies at render time. Formats: `16:9`, `9:16`, `1:1`.
   - `src/validation/` — `validate(spec, specDir)`, a non-throwing, multi-error validator
     (`ValidationResult`/`StructuredError`) for structural and semantic spec problems, including
-    brand resolution (`BRAND_NOT_FOUND`, with available brand ids as suggestions) and the new
-    scene fields (`EMPTY_CAPTION`, `UNSUPPORTED_FRAME`, `UNSUPPORTED_LOGO_POSITION`).
+    brand resolution (`BRAND_NOT_FOUND`, with available brand ids as suggestions), the scene
+    fields (`EMPTY_CAPTION`, `UNSUPPORTED_FRAME`, `UNSUPPORTED_LOGO_POSITION`), and `motion`
+    (`UNSUPPORTED_MOTION_TYPE`, `MOTION_DIRECTION_MISMATCH`, `FOCAL_POINT_OUT_OF_BOUNDS`). Stays
+    synchronous — real asset dimensions are only probed at render time, never during validation.
   - `src/rendering/` — the Remotion composition (`Timeline.tsx`) and `render(spec, specDir,
-outputPath)`, a deterministic Video Specification → MP4 pipeline for the `16:9`/`9:16`
-    formats. Captions, the browser-chrome frame, and the logo render as additive layers within
+outputPath)`, a deterministic Video Specification → MP4 pipeline for the `16:9`/`9:16`/`1:1`
+    formats. Captions, the chrome frame decoration, and the logo render as additive layers within
     a scene's existing `<Sequence>` (not new scene types), all styled from the resolved brand.
+    `probeAssetDimensions.ts` (`ffprobe`-based, cached per render) supplies each scene asset's
+    real dimensions to `cropTransform.ts`'s "cover crop with a moving window" math — the actual
+    scale/translate a scene's visual renders at, at a given frame, per its `motion`.
 
   Depends on no other workspace package. `mcp` and `cli` both depend on it.
 
@@ -52,8 +61,9 @@ outputPath)`, a deterministic Video Specification → MP4 pipeline for the `16:9
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI (`@oclif/core`, `@inquirer/prompts`) for local/
   scripted use. Exposes `motionkit validate <spec.json>` and `motionkit render <spec.json>`
   (both thin wrappers over `@motionkit/core`), plus the original `motionkit ping` health check.
-  See `packages/cli/examples/` for runnable example specs (Phase 1's `spec.json`, and Phase 2's
-  brand/caption/frame/logo/transition-demonstrating `brand-spec.json`).
+  See `packages/cli/examples/` for runnable example specs (Phase 1's `spec.json`, Phase 2's
+  brand/caption/frame/logo/transition-demonstrating `brand-spec.json`, and Phase 3a's
+  motion/phone-frame/`1:1`-demonstrating `motion-spec.json`).
 
 No database — MotionKit has no persistence layer of its own; asset/spec state is either passed
 through the MCP session or handled by the calling agent.
@@ -89,9 +99,12 @@ The real product ships in phases via OpenSpec changes driven by `/ps:ship`:
 
 1. **Foundation** ✅ — Video Specification schema, validation, deterministic Remotion render
    pipeline, `motionkit validate`/`motionkit render`. Landed by the `foundation` change.
-2. **Design System** — the controlled vocabulary of primitives (`ARoll`, `BRoll`, `BrowserDemo`,
-   `Text`, `Transition`, ...).
-3. **Responsive Layout** — composition/layout rules across aspect ratios.
+2. **Design System** ✅ — the Brand system, scene `caption`/`frame`/`logo`, and the expanded
+   transition vocabulary. Landed by the `brand-system` change.
+3. **Responsive Layout** — composition/layout rules across aspect ratios. Split into two changes:
+   `responsive-motion` ✅ (scene `motion`, `frame: "phone"`, the `1:1` format, and the crop/pan/
+   zoom render math) landed; `overlays-pip` (the scene-anchored `overlays[]` array and the `pip`
+   webcam-bubble overlay type) is next.
 4. **MCP tool surface** — `create_video`, `add_a_roll`, etc., replacing the placeholder `ping`.
 5. **AI Skill** — the agent-facing skill that turns natural language into a Video Specification.
 6. **Preview/Iteration** — fast feedback loop for reviewing and revising a render.

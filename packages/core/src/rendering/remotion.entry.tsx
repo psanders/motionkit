@@ -55,9 +55,23 @@ const DEFAULT_BRAND: Brand = {
     borderRadius: 12,
     shadow: "none"
   },
+  phoneFrameStyle: {
+    chromeColor: "#1E293B",
+    chromeHeightPx: 28,
+    borderRadius: 32,
+    shadow: "none"
+  },
   ctaStyle: { backgroundColor: "#4F46E5", textColor: "#F8FAFC", fontSize: 36, borderRadius: 8 },
   defaultTransitionDurationSeconds: 0.5
 };
+
+/**
+ * No probed dimensions in the placeholder default props (nothing to probe —
+ * see `DEFAULT_SPEC`'s comment). `Timeline.tsx` falls back to treating a
+ * missing entry as already matching the target composition (cover scale 1,
+ * no pan/zoom slack) rather than requiring one.
+ */
+const DEFAULT_ASSET_DIMENSIONS = {};
 
 const calculateMetadata: CalculateMetadataFunction<TimelineProps> = ({ props }) => {
   const durationInFrames = props.spec.scenes.reduce(
@@ -76,7 +90,11 @@ function Root() {
         component={Timeline}
         width={1920}
         height={1080}
-        defaultProps={{ spec: DEFAULT_SPEC, brand: DEFAULT_BRAND }}
+        defaultProps={{
+          spec: DEFAULT_SPEC,
+          brand: DEFAULT_BRAND,
+          assetDimensions: DEFAULT_ASSET_DIMENSIONS
+        }}
         calculateMetadata={calculateMetadata}
       />
       <Composition
@@ -84,7 +102,23 @@ function Root() {
         component={Timeline}
         width={1080}
         height={1920}
-        defaultProps={{ spec: { ...DEFAULT_SPEC, format: "9:16" }, brand: DEFAULT_BRAND }}
+        defaultProps={{
+          spec: { ...DEFAULT_SPEC, format: "9:16" },
+          brand: DEFAULT_BRAND,
+          assetDimensions: DEFAULT_ASSET_DIMENSIONS
+        }}
+        calculateMetadata={calculateMetadata}
+      />
+      <Composition
+        id="MotionKit1x1"
+        component={Timeline}
+        width={1080}
+        height={1080}
+        defaultProps={{
+          spec: { ...DEFAULT_SPEC, format: "1:1" },
+          brand: DEFAULT_BRAND,
+          assetDimensions: DEFAULT_ASSET_DIMENSIONS
+        }}
         calculateMetadata={calculateMetadata}
       />
     </>

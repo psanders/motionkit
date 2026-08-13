@@ -28,14 +28,19 @@ export interface SampleVideoOptions {
   /** Sine wave frequency (Hz) for the synthesized audio track — distinct frequencies make clips distinguishable when probing audio. */
   toneHz?: number;
   /**
-   * The `lavfi` visual source. `"testsrc"` (the default) is a generic test
-   * pattern; a solid `color` (e.g. `"red"`) makes clips trivially
-   * distinguishable by sampling a single pixel, which the rendering tests
-   * use to assert scene order.
+   * The `lavfi` visual source. `"testsrc"` is a generic test pattern; a
+   * solid `color` (e.g. `"red"`) makes clips trivially distinguishable by
+   * sampling a single pixel, which the rendering tests use to assert scene
+   * order. `"split-horizontal"`/`"split-vertical"` are two-color halves
+   * (`color`/`secondColor`) — used to verify pan *direction*: a whole-frame
+   * pixel average shifts from one color toward the other as the crop window
+   * moves across the source, which a single solid color can't demonstrate.
    */
-  visual?: "testsrc" | "color";
-  /** Solid fill color when `visual: "color"` (any ffmpeg color name, e.g. `"red"`). */
+  visual?: "testsrc" | "color" | "split-horizontal" | "split-vertical";
+  /** Solid fill color when `visual: "color"`, or the first half's color when `visual: "split-*"` (any ffmpeg color name, e.g. `"red"`). */
   color?: string;
+  /** The second half's color when `visual: "split-*"`. */
+  secondColor?: string;
 }
 
 /**
@@ -55,13 +60,57 @@ export function generateSampleVideo(options: SampleVideoOptions): string {
     fps = 30,
     toneHz = 440,
     visual = "testsrc",
-    color = "white"
+    color = "white",
+    secondColor = "blue"
   } = options;
 
   fs.mkdirSync(FIXTURES_DIR, { recursive: true });
   const outputPath = path.join(FIXTURES_DIR, name);
 
   if (fs.existsSync(outputPath)) {
+    return outputPath;
+  }
+
+  if (visual === "split-horizontal" || visual === "split-vertical") {
+    const isHorizontal = visual === "split-horizontal";
+    const halfWidth = isHorizontal ? Math.floor(width / 2) : width;
+    const halfHeight = isHorizontal ? height : Math.floor(height / 2);
+    const stackFilter = isHorizontal ? "hstack" : "vstack";
+
+    execFileSync(
+      "ffmpeg",
+      [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        `color=c=${color}:size=${halfWidth}x${halfHeight}:rate=${fps}:duration=${duration}`,
+        "-f",
+        "lavfi",
+        "-i",
+        `color=c=${secondColor}:size=${halfWidth}x${halfHeight}:rate=${fps}:duration=${duration}`,
+        "-f",
+        "lavfi",
+        "-i",
+        `sine=frequency=${toneHz}:duration=${duration}`,
+        "-filter_complex",
+        `[0:v][1:v]${stackFilter}=inputs=2[v]`,
+        "-map",
+        "[v]",
+        "-map",
+        "2:a",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-shortest",
+        outputPath
+      ],
+      { stdio: "pipe" }
+    );
+
     return outputPath;
   }
 

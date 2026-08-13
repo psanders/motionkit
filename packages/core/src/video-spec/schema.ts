@@ -10,8 +10,8 @@ import { z } from "zod/v4";
 import { placementSchema } from "../brand/schema.js";
 
 /** The output formats supported by MotionKit in this phase. */
-export const videoFormatSchema = z.enum(["16:9", "9:16"], {
-  error: "Format must be one of: 16:9, 9:16"
+export const videoFormatSchema = z.enum(["16:9", "9:16", "1:1"], {
+  error: "Format must be one of: 16:9, 9:16, 1:1"
 });
 
 /** The transition types supported by MotionKit in this phase. */
@@ -29,10 +29,74 @@ export const transitionSchema = z.object({
   duration: z.number().optional()
 });
 
-/** The static, decorative frame a scene can be wrapped in. Only one value today — a literal, not yet an enum, so it's cheap to extend later. */
-export const sceneFrameSchema = z.literal("browser", {
-  error: 'Frame must be: "browser"'
+/** The static, decorative frame a scene can be wrapped in. */
+export const sceneFrameSchema = z.enum(["browser", "phone"], {
+  error: 'Frame must be one of: "browser", "phone"'
 });
+
+/** Where a pan/zoom biases its crop, or centers on when `static`. Normalized 0-1 within the source asset; bounds are checked semantically by `validate()`, not structurally, so an out-of-range value is reported alongside other semantic violations. */
+export const focalPointSchema = z.object({
+  x: z.number(),
+  y: z.number()
+});
+
+const motionBaseSchema = {
+  focalPoint: focalPointSchema.optional()
+};
+
+/**
+ * `motion` is a discriminated union on `type`, exactly like `sceneSchema`
+ * above — each variant declares only the `direction` values (if any) valid
+ * for its own type. Every variant is `.strict()` (unlike the looser scene
+ * schemas) specifically so a `direction` field on `zoom`/`static` — which
+ * have no `direction` — is a structural validation failure rather than
+ * silently stripped, per design.md decision #5.
+ */
+export const horizontalPanMotionSchema = z
+  .object({
+    type: z.literal("horizontal_pan"),
+    direction: z
+      .enum(["left_to_right", "right_to_left"], {
+        error: "direction must be one of: left_to_right, right_to_left"
+      })
+      .default("left_to_right"),
+    ...motionBaseSchema
+  })
+  .strict();
+
+export const verticalPanMotionSchema = z
+  .object({
+    type: z.literal("vertical_pan"),
+    direction: z
+      .enum(["top_to_bottom", "bottom_to_top"], {
+        error: "direction must be one of: top_to_bottom, bottom_to_top"
+      })
+      .default("top_to_bottom"),
+    ...motionBaseSchema
+  })
+  .strict();
+
+export const zoomMotionSchema = z
+  .object({
+    type: z.literal("zoom"),
+    ...motionBaseSchema
+  })
+  .strict();
+
+export const staticMotionSchema = z
+  .object({
+    type: z.literal("static"),
+    ...motionBaseSchema
+  })
+  .strict();
+
+/** Semantic pan/zoom/crop intent for a scene — not pixel-level transforms. See `../rendering/cropTransform.ts` for how this becomes an actual crop. */
+export const motionSchema = z.discriminatedUnion("type", [
+  horizontalPanMotionSchema,
+  verticalPanMotionSchema,
+  zoomMotionSchema,
+  staticMotionSchema
+]);
 
 /** A scene's optional logo overlay: either `true` (use the active brand's default placement) or an explicit position override. */
 export const sceneLogoSchema = z.union([z.literal(true), z.object({ position: placementSchema })]);
@@ -60,7 +124,9 @@ const sceneBaseSchema = {
   /** A static, decorative wrapper around this scene's visual content. */
   frame: sceneFrameSchema.optional(),
   /** Overlays the active brand's logo on this scene. */
-  logo: sceneLogoSchema.optional()
+  logo: sceneLogoSchema.optional(),
+  /** Semantic pan/zoom/crop intent, independent of `frame` — usable with or without one. Omitted = a fixed, centered cover-crop (equivalent to `{ type: "static" }` with a centered focal point). */
+  motion: motionSchema.optional()
 };
 
 /** An A-roll scene: primary footage carrying its own audio. */

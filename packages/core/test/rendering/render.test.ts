@@ -67,6 +67,27 @@ describe("render", function () {
       visual: "color",
       toneHz: 880
     });
+    // Two-color split sources for motion tests — a whole-frame pixel
+    // average can distinguish "showing red" from "showing blue" in a way a
+    // single solid-color clip can't demonstrate a *pan* across.
+    generateSampleVideo({
+      name: "split-h.mp4",
+      duration: 3,
+      width: 640,
+      height: 180,
+      visual: "split-horizontal",
+      color: "red",
+      secondColor: "blue"
+    });
+    generateSampleVideo({
+      name: "split-v.mp4",
+      duration: 3,
+      width: 180,
+      height: 640,
+      visual: "split-vertical",
+      color: "red",
+      secondColor: "blue"
+    });
   });
 
   beforeEach(() => {
@@ -492,5 +513,248 @@ describe("render", function () {
       }
     }
     expect(fs.existsSync(outputPath)).to.equal(false);
+  });
+
+  it("should pan a horizontal_pan left-to-right by default, revealing the source's right side by the end of the scene", async () => {
+    // Arrange — split-h.mp4 is red on the left half, blue on the right
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        { type: "a_roll", asset: "split-h.mp4", duration: 2, motion: { type: "horizontal_pan" } }
+      ]
+    });
+    const outputPath = path.join(outDir, "pan-h-default.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — starts red-dominant (showing the source's left edge), ends blue-dominant (right edge)
+    const [rStart, , bStart] = getPixelAt(outputPath, 0.02);
+    const [rEnd, , bEnd] = getPixelAt(outputPath, 1.9);
+    expect(rStart).to.be.greaterThan(bStart);
+    expect(bEnd).to.be.greaterThan(rEnd);
+  });
+
+  it("should reverse a horizontal_pan when direction: right_to_left is declared", async () => {
+    // Arrange
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "split-h.mp4",
+          duration: 2,
+          motion: { type: "horizontal_pan", direction: "right_to_left" }
+        }
+      ]
+    });
+    const outputPath = path.join(outDir, "pan-h-reversed.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — the reverse of the default: starts blue-dominant, ends red-dominant
+    const [rStart, , bStart] = getPixelAt(outputPath, 0.02);
+    const [rEnd, , bEnd] = getPixelAt(outputPath, 1.9);
+    expect(bStart).to.be.greaterThan(rStart);
+    expect(rEnd).to.be.greaterThan(bEnd);
+  });
+
+  it("should pan a vertical_pan top-to-bottom by default, revealing the source's bottom by the end of the scene", async () => {
+    // Arrange — split-v.mp4 is red on the top half, blue on the bottom
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        { type: "a_roll", asset: "split-v.mp4", duration: 2, motion: { type: "vertical_pan" } }
+      ]
+    });
+    const outputPath = path.join(outDir, "pan-v-default.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — starts red-dominant (top), ends blue-dominant (bottom)
+    const [rStart, , bStart] = getPixelAt(outputPath, 0.02);
+    const [rEnd, , bEnd] = getPixelAt(outputPath, 1.9);
+    expect(rStart).to.be.greaterThan(bStart);
+    expect(bEnd).to.be.greaterThan(rEnd);
+  });
+
+  it("should reverse a vertical_pan when direction: bottom_to_top is declared", async () => {
+    // Arrange
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "split-v.mp4",
+          duration: 2,
+          motion: { type: "vertical_pan", direction: "bottom_to_top" }
+        }
+      ]
+    });
+    const outputPath = path.join(outDir, "pan-v-reversed.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert
+    const [rStart, , bStart] = getPixelAt(outputPath, 0.02);
+    const [rEnd, , bEnd] = getPixelAt(outputPath, 1.9);
+    expect(bStart).to.be.greaterThan(rStart);
+    expect(rEnd).to.be.greaterThan(bEnd);
+  });
+
+  it("should zoom in toward the focal point over the scene's duration, revealing progressively less of the far side", async () => {
+    // Arrange — focal point biased toward the blue (right) side; zooming in
+    // should show progressively *more* blue, *less* red, as it magnifies
+    // toward that point (see design.md's derivation in the responsive-motion
+    // change design doc, decision #1).
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "split-h.mp4",
+          duration: 2,
+          motion: { type: "zoom", focalPoint: { x: 0.75, y: 0.5 } }
+        }
+      ]
+    });
+    const outputPath = path.join(outDir, "zoom.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — red's share of the frame shrinks as the zoom progresses
+    const [rStart] = getPixelAt(outputPath, 0.02);
+    const [rEnd] = getPixelAt(outputPath, 1.9);
+    expect(rEnd).to.be.lessThan(rStart);
+  });
+
+  it("should bias a static motion's crop toward an off-center focal point, distinct from the default centered crop", async () => {
+    // Arrange
+    const centeredSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "split-h.mp4", duration: 1 }]
+    });
+    const biasedSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "split-h.mp4",
+          duration: 1,
+          motion: { type: "static", focalPoint: { x: 1, y: 0.5 } }
+        }
+      ]
+    });
+    const centeredPath = path.join(outDir, "static-centered.mp4");
+    const biasedPath = path.join(outDir, "static-biased.mp4");
+
+    // Act
+    await render(centeredSpec, FIXTURES_DIR, centeredPath);
+    await render(biasedSpec, FIXTURES_DIR, biasedPath);
+
+    // Assert — the focal-point-biased crop shows more blue than the centered default
+    const [, , bCentered] = getPixelAt(centeredPath, 0.5);
+    const [, , bBiased] = getPixelAt(biasedPath, 0.5);
+    expect(bBiased).to.be.greaterThan(bCentered);
+  });
+
+  it("should render a scene declaring both motion and a frame decoration without error", async () => {
+    // Arrange
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "split-h.mp4",
+          duration: 1,
+          frame: "browser",
+          motion: { type: "horizontal_pan" }
+        }
+      ]
+    });
+    const outputPath = path.join(outDir, "motion-plus-frame.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert
+    expect(fs.existsSync(outputPath)).to.equal(true);
+    const info = getVideoInfo(outputPath);
+    expect(info.width).to.equal(1920);
+    expect(info.height).to.equal(1080);
+  });
+
+  it("should render a phone frame, visibly distinct from a browser frame", async () => {
+    // Arrange — the built-in default brand's phoneFrameStyle has a different
+    // chromeHeightPx/borderRadius than browserFrameStyle (see
+    // default.brand.json), so the two should composite differently.
+    const browserSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1, frame: "browser" }]
+    });
+    const phoneSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1, frame: "phone" }]
+    });
+    const browserPath = path.join(outDir, "frame-browser.mp4");
+    const phonePath = path.join(outDir, "frame-phone.mp4");
+
+    // Act
+    await render(browserSpec, FIXTURES_DIR, browserPath);
+    await render(phoneSpec, FIXTURES_DIR, phonePath);
+
+    // Assert — the default brand's browserFrameStyle/phoneFrameStyle share a
+    // chromeColor but differ in chromeHeightPx (40 vs 28, past the shared
+    // 32px padding): the band from y=60 to y=72 is still inside the
+    // browser's chrome bar but past the phone's, so it shows the browser's
+    // chromeColor on one side and the scene's actual video content on the
+    // other — a region a same-colored, same-position strip couldn't detect.
+    const boundaryStrip = { x: 800, y: 62, width: 320, height: 8 };
+    const browserAtBoundary = getPixelAtRegion(browserPath, 0.5, boundaryStrip);
+    const phoneAtBoundary = getPixelAtRegion(phonePath, 0.5, boundaryStrip);
+    expect(phoneAtBoundary).to.not.deep.equal(browserAtBoundary);
+  });
+
+  it("should render 1:1 at 1080x1080", async () => {
+    // Arrange
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "1:1",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }]
+    });
+    const outputPath = path.join(outDir, "square.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert
+    const info = getVideoInfo(outputPath);
+    expect(info.width).to.equal(1080);
+    expect(info.height).to.equal(1080);
   });
 });

@@ -35,6 +35,12 @@ function wellFormedBrand(): Brand {
       borderRadius: 12,
       shadow: "0 12px 24px rgba(0,0,0,0.4)"
     },
+    phoneFrameStyle: {
+      chromeColor: "#1E293B",
+      chromeHeightPx: 28,
+      borderRadius: 32,
+      shadow: "0 12px 24px rgba(0,0,0,0.4)"
+    },
     ctaStyle: { backgroundColor: "#4F46E5", textColor: "#F8FAFC", fontSize: 36, borderRadius: 8 },
     defaultTransitionDurationSeconds: 0.5
   };
@@ -60,6 +66,7 @@ describe("brandSchema", () => {
     "titleStyle",
     "lowerThirdStyle",
     "browserFrameStyle",
+    "phoneFrameStyle",
     "ctaStyle",
     "defaultTransitionDurationSeconds"
   ];

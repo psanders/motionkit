@@ -1,0 +1,37 @@
+{
+  "version": "1",
+  "format": "1:1",
+  "fps": 30,
+  "brand": "acme",
+  "scenes": [
+    {
+      "type": "a_roll",
+      "asset": "assets/interview.mp4",
+      "duration": 2,
+      "motion": { "type": "horizontal_pan" }
+    },
+    {
+      "type": "b_roll",
+      "asset": "assets/broll-1.mp4",
+      "duration": 2,
+      "frame": "phone",
+      "motion": { "type": "zoom", "focalPoint": { "x": 0.5, "y": 0.5 } },
+      "transition": { "type": "fade" }
+    },
+    {
+      "type": "b_roll",
+      "asset": "assets/broll-2.mp4",
+      "duration": 2,
+      "audio": "muted",
+      "motion": { "type": "vertical_pan", "direction": "bottom_to_top" },
+      "transition": { "type": "slide-left" }
+    },
+    {
+      "type": "a_roll",
+      "asset": "assets/interview-2.mp4",
+      "duration": 2,
+      "motion": { "type": "static", "focalPoint": { "x": 0.3, "y": 0.7 } },
+      "transition": { "type": "zoom" }
+    }
+  ]
+}

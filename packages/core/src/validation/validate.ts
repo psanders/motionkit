@@ -17,10 +17,13 @@ import { videoSpecSchema } from "../video-spec/schema.js";
 import type { VideoSpec } from "../video-spec/types.js";
 import type { StructuredError, ValidationResult } from "./errors.js";
 
-const SUPPORTED_FORMATS = ["16:9", "9:16"] as const;
+const SUPPORTED_FORMATS = ["16:9", "9:16", "1:1"] as const;
 const SUPPORTED_TRANSITIONS = ["fade", "slide-left", "slide-right", "zoom"] as const;
-const SUPPORTED_FRAMES = ["browser"] as const;
+const SUPPORTED_FRAMES = ["browser", "phone"] as const;
+const SUPPORTED_MOTION_TYPES = ["horizontal_pan", "vertical_pan", "zoom", "static"] as const;
 const SUPPORTED_PLACEMENTS = placementSchema.options;
+const FOCAL_POINT_MIN = 0;
+const FOCAL_POINT_MAX = 1;
 
 /**
  * Validates an unknown value as a Video Specification.
@@ -99,6 +102,23 @@ function toStructuredError(issue: core.$ZodIssue, rawSpec: unknown): StructuredE
     };
   }
 
+  if (issuePath.endsWith("motion.type") && isInvalidValue) {
+    return {
+      code: "UNSUPPORTED_MOTION_TYPE",
+      message: `Motion type must be one of: ${SUPPORTED_MOTION_TYPES.join(", ")}`,
+      path: issuePath
+    };
+  }
+
+  if (issuePath.endsWith("motion") && isMotionDirectionMismatch(issue)) {
+    return {
+      code: "MOTION_DIRECTION_MISMATCH",
+      message:
+        "direction is only valid on horizontal_pan (left_to_right/right_to_left) or vertical_pan (top_to_bottom/bottom_to_top) motion, not zoom or static.",
+      path: `${issuePath}.direction`
+    };
+  }
+
   return { code: "MALFORMED_SPEC", message: issue.message, path: issuePath || undefined };
 }
 
@@ -115,6 +135,20 @@ function isLogoPositionIssue(issue: core.$ZodIssue): boolean {
 
   const subIssues = (issue as unknown as { errors: core.$ZodIssue[][] }).errors ?? [];
   return subIssues.flat().some((subIssue) => subIssue.path.join(".") === "position");
+}
+
+/**
+ * The `zoom`/`static` motion variants are `.strict()` with no `direction`
+ * field (see design.md decision #5), so a `direction` on either surfaces as
+ * Zod's "unrecognized keys on a strict object" issue at the `motion` path
+ * itself, rather than a per-field issue — distinguishes that specific case
+ * from any other structural problem at the `motion` path.
+ */
+function isMotionDirectionMismatch(issue: core.$ZodIssue): boolean {
+  if (issue.code !== "unrecognized_keys") return false;
+
+  const keys = (issue as unknown as { keys?: string[] }).keys ?? [];
+  return keys.includes("direction");
 }
 
 /** Runs semantic checks (brand resolution, positive duration, asset existence, non-empty captions) against a structurally valid spec. */
@@ -154,9 +188,30 @@ function collectSemanticErrors(spec: VideoSpec, specDir: string): StructuredErro
         path: `${scenePath}.caption`
       });
     }
+
+    const focalPoint = scene.motion?.focalPoint;
+    if (focalPoint) {
+      const outOfBoundsAxis = getOutOfBoundsFocalPointAxis(focalPoint);
+      if (outOfBoundsAxis) {
+        errors.push({
+          code: "FOCAL_POINT_OUT_OF_BOUNDS",
+          message: `Scene ${index}'s motion.focalPoint.${outOfBoundsAxis} (${focalPoint[outOfBoundsAxis]}) must be between ${FOCAL_POINT_MIN} and ${FOCAL_POINT_MAX}.`,
+          path: `${scenePath}.motion.focalPoint.${outOfBoundsAxis}`
+        });
+      }
+    }
   });
 
   return errors;
+}
+
+/** Returns the first axis (`"x"` or `"y"`) outside `[0, 1]`, or `null` if both are in bounds. */
+function getOutOfBoundsFocalPointAxis(focalPoint: { x: number; y: number }): "x" | "y" | null {
+  for (const axis of ["x", "y"] as const) {
+    const value = focalPoint[axis];
+    if (value < FOCAL_POINT_MIN || value > FOCAL_POINT_MAX) return axis;
+  }
+  return null;
 }
 
 /** Checks that a scene's asset resolves to a file on disk, suggesting sibling files when it doesn't. */

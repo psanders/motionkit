@@ -11,7 +11,11 @@ for the `16:9`/`9:16` formats, with `motionkit validate`/`motionkit render` CLI 
 them. Phase 2 (Brand System) adds a Brand system — a design-token document (colors, typography,
 logo, spacing, shadows, and per-primitive style presets) referenced by id and never inlined into
 a Video Specification — plus scene-level `caption`, `frame`, and `logo` fields, and three new
-transitions (`slide-left`, `slide-right`, `zoom`) alongside the existing `fade`.
+transitions (`slide-left`, `slide-right`, `zoom`) alongside the existing `fade`. Phase 3a
+(Responsive Motion) adds a scene-level `motion` field (`horizontal_pan`/`vertical_pan`/`zoom`/
+`static`, with an optional focal point) that drives real crop/pan/zoom render math based on each
+source asset's actual dimensions, a `frame: "phone"` chrome decoration alongside `"browser"`,
+and the `1:1` format.
 
 ## Packages
 
@@ -23,7 +27,8 @@ transitions (`slide-left`, `slide-right`, `zoom`) alongside the existing `fade`.
   `ping` tool — the real tool surface is Phase 4).
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI for local/scripted use: `motionkit validate
 <spec.json>` and `motionkit render <spec.json>`. See `packages/cli/examples/` for runnable
-  examples, including a brand/caption/frame/logo/transition-demonstrating spec.
+  examples: a Phase 1 spec, a brand/caption/frame/logo/transition-demonstrating Phase 2 spec, and
+  a motion/phone-frame/`1:1`-demonstrating Phase 3a spec.
 
 ## Requirements
 

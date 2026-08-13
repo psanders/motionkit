@@ -15,6 +15,7 @@ import { loadBrand } from "../brand/registry.js";
 import { validate } from "../validation/validate.js";
 import type { StructuredError } from "../validation/errors.js";
 import type { VideoSpec } from "../video-spec/types.js";
+import { probeAssetDimensions, type AssetDimensions } from "./probeAssetDimensions.js";
 import { resolveBrandAssets } from "./resolveBrandAssets.js";
 
 // The bundler needs the entry's actual file: `.tsx` when running against
@@ -43,7 +44,24 @@ export class RenderValidationError extends Error {
 
 /** Maps a Video Specification's format to its registered composition id (see `remotion.entry.tsx`). */
 function compositionIdFor(format: VideoSpec["format"]): string {
-  return format === "16:9" ? "MotionKit16x9" : "MotionKit9x16";
+  if (format === "16:9") return "MotionKit16x9";
+  if (format === "9:16") return "MotionKit9x16";
+  return "MotionKit1x1";
+}
+
+/** Probes every scene's asset once (per unique path), keyed by the scene's own `asset` string so `Timeline.tsx` can look dimensions up by the same key spec authors use. Needed by the crop/pan/zoom math in `cropTransform.ts`, which requires the source's real dimensions, not just the target composition's. */
+function probeSceneAssetDimensions(
+  spec: VideoSpec,
+  specDir: string
+): Record<string, AssetDimensions> {
+  const dimensionsByAsset: Record<string, AssetDimensions> = {};
+
+  for (const scene of spec.scenes) {
+    if (dimensionsByAsset[scene.asset]) continue;
+    dimensionsByAsset[scene.asset] = probeAssetDimensions(path.resolve(specDir, scene.asset));
+  }
+
+  return dimensionsByAsset;
 }
 
 // Bundling the Remotion entry is the expensive, spec-independent part of a
@@ -98,9 +116,10 @@ export async function render(spec: VideoSpec, specDir: string, outputPath: strin
   // `loadBrand` (the throwing counterpart to `findBrand`) is safe here.
   const { brand, brandDir } = loadBrand(spec.brand, specDir);
   const resolvedBrand = resolveBrandAssets(brand, brandDir);
+  const assetDimensions = probeSceneAssetDimensions(spec, specDir);
 
   const serveUrl = await getBundleUrl(specDir);
-  const inputProps = { spec, brand: resolvedBrand };
+  const inputProps = { spec, brand: resolvedBrand, assetDimensions };
 
   const composition = await selectComposition({
     serveUrl,

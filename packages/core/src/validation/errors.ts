@@ -17,7 +17,10 @@ export type StructuredErrorCode =
   | "BRAND_NOT_FOUND"
   | "EMPTY_CAPTION"
   | "UNSUPPORTED_FRAME"
-  | "UNSUPPORTED_LOGO_POSITION";
+  | "UNSUPPORTED_LOGO_POSITION"
+  | "UNSUPPORTED_MOTION_TYPE"
+  | "MOTION_DIRECTION_MISMATCH"
+  | "FOCAL_POINT_OUT_OF_BOUNDS";
 
 /** One rule violation, with an optional path into the document and optional correction hints. */
 export interface StructuredError {

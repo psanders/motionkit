@@ -189,9 +189,17 @@ describe("videoSpecSchema", () => {
     expect(result.success).to.equal(true);
   });
 
-  it("should reject an unsupported format", () => {
+  it("should accept the 1:1 format", () => {
     // Act
     const result = videoSpecSchema.safeParse(baseSpec({ format: "1:1" }));
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should reject an unsupported format", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(baseSpec({ format: "4:3" }));
 
     // Assert
     expect(result.success).to.equal(false);
@@ -247,6 +255,18 @@ describe("videoSpecSchema", () => {
     const result = videoSpecSchema.safeParse(
       baseSpec({
         scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, frame: "browser" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should accept a phone frame", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, frame: "phone" }]
       })
     );
 
@@ -381,6 +401,209 @@ describe("videoSpecSchema", () => {
     expect(result.success).to.equal(true);
     if (result.success && result.data.scenes[1]?.transition) {
       expect(result.data.scenes[1].transition.duration).to.equal(1.2);
+    }
+  });
+
+  it("should accept a horizontal_pan motion, defaulting direction to left_to_right", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          { type: "a_roll", asset: "clip.mp4", duration: 5, motion: { type: "horizontal_pan" } }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      const motion = result.data.scenes[0]?.motion;
+      expect(motion?.type).to.equal("horizontal_pan");
+      if (motion?.type === "horizontal_pan") {
+        expect(motion.direction).to.equal("left_to_right");
+      }
+    }
+  });
+
+  it("should accept a horizontal_pan motion with an overridden direction", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          {
+            type: "a_roll",
+            asset: "clip.mp4",
+            duration: 5,
+            motion: { type: "horizontal_pan", direction: "right_to_left" }
+          }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should accept a vertical_pan motion, defaulting direction to top_to_bottom", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          { type: "a_roll", asset: "clip.mp4", duration: 5, motion: { type: "vertical_pan" } }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      const motion = result.data.scenes[0]?.motion;
+      expect(motion?.type).to.equal("vertical_pan");
+      if (motion?.type === "vertical_pan") {
+        expect(motion.direction).to.equal("top_to_bottom");
+      }
+    }
+  });
+
+  it("should accept a vertical_pan motion with an overridden direction", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          {
+            type: "a_roll",
+            asset: "clip.mp4",
+            duration: 5,
+            motion: { type: "vertical_pan", direction: "bottom_to_top" }
+          }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should accept a zoom motion", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, motion: { type: "zoom" } }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should accept a static motion with a focal point", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          {
+            type: "a_roll",
+            asset: "clip.mp4",
+            duration: 5,
+            motion: { type: "static", focalPoint: { x: 0.5, y: 0.3 } }
+          }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should accept a motion with no focal point", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, motion: { type: "zoom" } }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should reject an unrecognized motion type", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, motion: { type: "spin" } }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(false);
+  });
+
+  it("should reject a direction on a zoom motion", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          {
+            type: "a_roll",
+            asset: "clip.mp4",
+            duration: 5,
+            motion: { type: "zoom", direction: "left_to_right" }
+          }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(false);
+  });
+
+  it("should reject a direction on a static motion", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          {
+            type: "a_roll",
+            asset: "clip.mp4",
+            duration: 5,
+            motion: { type: "static", direction: "top_to_bottom" }
+          }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(false);
+  });
+
+  it("should accept a scene with motion but no frame", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          { type: "b_roll", asset: "clip.mp4", duration: 5, motion: { type: "horizontal_pan" } }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      expect(result.data.scenes[0]?.frame).to.equal(undefined);
+    }
+  });
+
+  it("should accept a scene with no motion at all", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({ scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5 }] })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      expect(result.data.scenes[0]?.motion).to.equal(undefined);
     }
   });
 });

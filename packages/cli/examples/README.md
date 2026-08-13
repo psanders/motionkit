@@ -1,6 +1,6 @@
 # Example Video Specifications
 
-Two small specs for manually smoke-testing `motionkit validate`/`motionkit render` against real
+Three small specs for manually smoke-testing `motionkit validate`/`motionkit render` against real
 (synthetic) assets, without an MCP client attached.
 
 ```bash
@@ -11,6 +11,9 @@ node ../bin/run.js render spec.json           # writes spec.mp4 alongside spec.j
 
 node ../bin/run.js validate brand-spec.json
 node ../bin/run.js render brand-spec.json     # writes brand-spec.mp4 alongside brand-spec.json
+
+node ../bin/run.js validate motion-spec.json
+node ../bin/run.js render motion-spec.json    # writes motion-spec.mp4 alongside motion-spec.json
 ```
 
 ## `spec.json` — Phase 1 (Foundation)
@@ -31,3 +34,14 @@ and all three new transition types (`slide-left`, `slide-right`, `zoom`), none o
 an explicit duration — so each inherits `acme.brand.json`'s `defaultTransitionDurationSeconds`.
 `brands/acme-logo.svg` is the brand's own logo asset, resolved relative to the brand file's
 directory, not this spec's.
+
+## `motion-spec.json` — Phase 3a (Responsive Motion)
+
+Exercises every `responsive-motion` primitive: the `1:1` (1080x1080) format, a `horizontal_pan`
+motion (default `left_to_right` direction), a `frame: "phone"` decoration combined with a `zoom`
+motion anchored to a centered focal point, a `vertical_pan` motion with an explicit
+`bottom_to_top` direction, and a `static` motion biased toward an off-center focal point — all
+against the `acme` brand from `brand-spec.json`'s example. Every source asset here is the same
+640x360 landscape footage `generate-assets.sh` already produces; the crop/pan/zoom math computes
+real slack to move across regardless of target format, using each asset's actual probed
+dimensions (see `probeAssetDimensions.ts`), not just the target composition's.

@@ -95,7 +95,7 @@ describe("validate", () => {
 
   it("should reject an unsupported format, listing the supported formats", () => {
     // Arrange
-    const spec = { ...validSpec(), format: "1:1" };
+    const spec = { ...validSpec(), format: "4:3" };
 
     // Act
     const result = validate(spec, specDir);
@@ -107,7 +107,19 @@ describe("validate", () => {
       expect(error).to.not.equal(undefined);
       expect(error?.message).to.include("16:9");
       expect(error?.message).to.include("9:16");
+      expect(error?.message).to.include("1:1");
     }
+  });
+
+  it("should accept the 1:1 format", () => {
+    // Arrange
+    const spec = { ...validSpec(), format: "1:1" };
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(true);
   });
 
   it("should reject an unsupported transition, listing the supported transitions", () => {
@@ -381,5 +393,106 @@ describe("validate", () => {
       const codes = result.errors.map((e) => e.code).sort();
       expect(codes).to.deep.equal(["ASSET_NOT_FOUND", "EMPTY_CAPTION"]);
     }
+  });
+
+  it("should accept a phone frame", () => {
+    // Arrange
+    const spec = validSpec({
+      scenes: [{ type: "a_roll", asset: "a.mp4", duration: 5, frame: "phone" }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(true);
+  });
+
+  it("should reject an unsupported motion type, listing the supported motion types", () => {
+    // Arrange
+    const spec = validSpec({
+      scenes: [{ type: "a_roll", asset: "a.mp4", duration: 5, motion: { type: "spin" } }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const error = result.errors.find((e) => e.code === "UNSUPPORTED_MOTION_TYPE");
+      expect(error).to.not.equal(undefined);
+      expect(error?.message).to.include("horizontal_pan");
+      expect(error?.message).to.include("zoom");
+    }
+  });
+
+  it("should reject a direction mismatched with its motion type", () => {
+    // Arrange
+    const spec = validSpec({
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "a.mp4",
+          duration: 5,
+          motion: { type: "zoom", direction: "left_to_right" }
+        }
+      ]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const error = result.errors.find((e) => e.code === "MOTION_DIRECTION_MISMATCH");
+      expect(error).to.not.equal(undefined);
+    }
+  });
+
+  it("should reject an out-of-bounds focal point", () => {
+    // Arrange
+    const spec = validSpec({
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "a.mp4",
+          duration: 5,
+          motion: { type: "static", focalPoint: { x: 1.5, y: 0.5 } }
+        }
+      ]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const error = result.errors.find((e) => e.code === "FOCAL_POINT_OUT_OF_BOUNDS");
+      expect(error).to.not.equal(undefined);
+      expect(error?.path).to.equal("scenes.0.motion.focalPoint.x");
+    }
+  });
+
+  it("should accept an in-bounds focal point", () => {
+    // Arrange
+    const spec = validSpec({
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "a.mp4",
+          duration: 5,
+          motion: { type: "static", focalPoint: { x: 0, y: 1 } }
+        }
+      ]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(true);
   });
 });

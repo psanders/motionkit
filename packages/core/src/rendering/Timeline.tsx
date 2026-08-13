@@ -1,12 +1,15 @@
 /**
  * Copyright (C) 2026 by Pedro Sanders. MIT.
  *
- * The shared root component both format compositions render. Maps a Video
- * Specification's scenes onto Remotion `<Sequence>`s (visuals), plus a
+ * The shared root component all three format compositions render. Maps a
+ * Video Specification's scenes onto Remotion `<Sequence>`s (visuals), plus a
  * separately-derived set of `<Sequence>`s for A-roll audio continuity, so
  * audio can outlive the visual scene that introduced it. Captions, the
- * browser-chrome frame, and the logo are additive layers within a scene's
- * own `<Sequence>` (see design.md decision #4) — not new scene types.
+ * chrome frame decoration, and the logo are additive layers within a scene's
+ * own `<Sequence>` (see `brand-system`'s design.md decision #4) — not new
+ * scene types; neither is a scene's `motion` (a crop/pan/zoom applied to the
+ * source itself — see `cropTransform.ts` and `responsive-motion`'s design.md
+ * decision #1).
  */
 import type { CSSProperties, ReactNode } from "react";
 import {
@@ -17,11 +20,14 @@ import {
   Sequence,
   interpolate,
   staticFile,
-  useCurrentFrame
+  useCurrentFrame,
+  useVideoConfig
 } from "remotion";
 import type { Brand, Placement } from "../brand/types.js";
-import type { Scene, Transition, VideoSpec } from "../video-spec/types.js";
+import type { Scene, SceneFrame, Transition, VideoSpec } from "../video-spec/types.js";
 import { deriveAudioSpans } from "./audioSpans.js";
+import { resolveCropTransform } from "./cropTransform.js";
+import type { AssetDimensions } from "./probeAssetDimensions.js";
 
 /** How far zoomed out a `zoom` transition starts before settling to its natural scale. */
 const ZOOM_START_SCALE = 0.4;
@@ -29,6 +35,8 @@ const ZOOM_START_SCALE = 0.4;
 export interface TimelineProps {
   spec: VideoSpec;
   brand: Brand;
+  /** Every scene asset's real dimensions, keyed by the scene's own `asset` string (see `render.ts`'s `probeSceneAssetDimensions`) — the crop/pan/zoom math needs the source's actual size, not just the target composition's. */
+  assetDimensions: Record<string, AssetDimensions>;
   // Remotion's `<Composition>` constrains its props generic to
   // `Record<string, unknown>` — this index signature satisfies that without
   // widening how the rest of the module uses `TimelineProps`.
@@ -80,7 +88,8 @@ function withOffsets(spec: VideoSpec, brand: Brand): SceneWithOffset[] {
   });
 }
 
-export function Timeline({ spec, brand }: TimelineProps) {
+export function Timeline({ spec, brand, assetDimensions }: TimelineProps) {
+  const { width: targetWidth, height: targetHeight } = useVideoConfig();
   const scenesWithOffsets = withOffsets(spec, brand);
   const audioSpans = deriveAudioSpans(spec);
 
@@ -92,7 +101,13 @@ export function Timeline({ spec, brand }: TimelineProps) {
             <SceneLayers
               scene={scene}
               brand={brand}
+              durationInFrames={durationInFrames}
               transitionDurationInFrames={transitionDurationInFrames}
+              sourceDimensions={
+                assetDimensions[scene.asset] ?? { width: targetWidth, height: targetHeight }
+              }
+              targetWidth={targetWidth}
+              targetHeight={targetHeight}
             />
           </Sequence>
         )
@@ -110,23 +125,44 @@ export function Timeline({ spec, brand }: TimelineProps) {
   );
 }
 
-/** Composes one scene's visual, plus its optional browser-frame wrapper, caption overlay, and logo overlay. */
+/** Composes one scene's visual, plus its optional frame wrapper, caption overlay, and logo overlay. */
 function SceneLayers({
   scene,
   brand,
-  transitionDurationInFrames
+  durationInFrames,
+  transitionDurationInFrames,
+  sourceDimensions,
+  targetWidth,
+  targetHeight
 }: {
   scene: Scene;
   brand: Brand;
+  durationInFrames: number;
   transitionDurationInFrames: number;
+  sourceDimensions: AssetDimensions;
+  targetWidth: number;
+  targetHeight: number;
 }) {
   const visual = (
-    <SceneVisual scene={scene} transitionDurationInFrames={transitionDurationInFrames} />
+    <SceneVisual
+      scene={scene}
+      durationInFrames={durationInFrames}
+      transitionDurationInFrames={transitionDurationInFrames}
+      sourceDimensions={sourceDimensions}
+      targetWidth={targetWidth}
+      targetHeight={targetHeight}
+    />
   );
 
   return (
     <AbsoluteFill>
-      {scene.frame === "browser" ? <BrowserFrame brand={brand}>{visual}</BrowserFrame> : visual}
+      {scene.frame ? (
+        <FrameDecoration brand={brand} frame={scene.frame}>
+          {visual}
+        </FrameDecoration>
+      ) : (
+        visual
+      )}
       {scene.caption ? <CaptionOverlay text={scene.caption} brand={brand} /> : null}
       {scene.logo ? (
         <LogoOverlay
@@ -138,23 +174,55 @@ function SceneLayers({
   );
 }
 
-/** Renders one scene's visuals, applying the resolved transition's transform/opacity ramp when the scene declares one. */
+/**
+ * Renders one scene's visuals: the source, cropped/panned/zoomed per its
+ * `motion` (see `cropTransform.ts` — undefined `motion` resolves to the same
+ * fixed, centered cover-crop as before this change), wrapped in an
+ * `overflow: hidden` viewport so an oversized, translated source clips
+ * correctly. The scene-level transition's transform/opacity ramp applies to
+ * that viewport, not the source itself, so the two compose independently
+ * rather than fighting over one `transform`.
+ */
 function SceneVisual({
   scene,
-  transitionDurationInFrames
+  durationInFrames,
+  transitionDurationInFrames,
+  sourceDimensions,
+  targetWidth,
+  targetHeight
 }: {
   scene: Scene;
+  durationInFrames: number;
   transitionDurationInFrames: number;
+  sourceDimensions: AssetDimensions;
+  targetWidth: number;
+  targetHeight: number;
 }) {
   const frame = useCurrentFrame();
-  const style = transitionStyle(scene.transition?.type, frame, transitionDurationInFrames);
+  const transitionCss = transitionStyle(scene.transition?.type, frame, transitionDurationInFrames);
+  const crop = resolveCropTransform({
+    sourceWidth: sourceDimensions.width,
+    sourceHeight: sourceDimensions.height,
+    targetWidth,
+    targetHeight,
+    motion: scene.motion,
+    frame,
+    durationInFrames
+  });
 
   return (
-    <AbsoluteFill style={style}>
+    <AbsoluteFill style={{ ...transitionCss, overflow: "hidden" }}>
       <OffthreadVideo
         src={staticFile(scene.asset)}
         muted
-        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: sourceDimensions.width * crop.scale,
+          height: sourceDimensions.height * crop.scale,
+          transform: `translate(${crop.translateX}px, ${crop.translateY}px)`
+        }}
       />
     </AbsoluteFill>
   );
@@ -190,9 +258,18 @@ function transitionStyle(
   }
 }
 
-/** Wraps a scene's visual content in a static browser-chrome frame, styled per the active brand's `browserFrameStyle` — pure CSS, no motion. */
-function BrowserFrame({ brand, children }: { brand: Brand; children: ReactNode }) {
-  const { chromeColor, chromeHeightPx, borderRadius, shadow } = brand.browserFrameStyle;
+/** Wraps a scene's visual content in a static chrome frame — `"browser"` or `"phone"` — styled per the matching brand token (`browserFrameStyle`/`phoneFrameStyle`). Same rendering structure for both; only the token source differs, per design.md's "simplified chrome, not a detailed bezel" decision. Pure CSS, no motion. */
+function FrameDecoration({
+  brand,
+  frame,
+  children
+}: {
+  brand: Brand;
+  frame: SceneFrame;
+  children: ReactNode;
+}) {
+  const { chromeColor, chromeHeightPx, borderRadius, shadow } =
+    frame === "browser" ? brand.browserFrameStyle : brand.phoneFrameStyle;
 
   return (
     <AbsoluteFill style={{ padding: brand.spacing.lg }}>

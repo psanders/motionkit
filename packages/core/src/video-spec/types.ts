@@ -8,6 +8,8 @@ import type {
   aRollSceneSchema,
   bRollAudioSchema,
   bRollSceneSchema,
+  focalPointSchema,
+  motionSchema,
   sceneFrameSchema,
   sceneLogoSchema,
   sceneSchema,
@@ -20,6 +22,8 @@ export type VideoFormat = z.infer<typeof videoFormatSchema>;
 export type Transition = z.infer<typeof transitionSchema>;
 export type SceneFrame = z.infer<typeof sceneFrameSchema>;
 export type SceneLogo = z.infer<typeof sceneLogoSchema>;
+export type FocalPoint = z.infer<typeof focalPointSchema>;
+export type Motion = z.infer<typeof motionSchema>;
 export type ARollScene = z.infer<typeof aRollSceneSchema>;
 export type BRollAudio = z.infer<typeof bRollAudioSchema>;
 export type BRollScene = z.infer<typeof bRollSceneSchema>;

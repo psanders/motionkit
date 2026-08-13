@@ -36,6 +36,12 @@ function customBrand(): Brand {
       borderRadius: 8,
       shadow: "none"
     },
+    phoneFrameStyle: {
+      chromeColor: "#111111",
+      chromeHeightPx: 24,
+      borderRadius: 28,
+      shadow: "none"
+    },
     ctaStyle: { backgroundColor: "#000000", textColor: "#ffffff", fontSize: 28, borderRadius: 4 },
     defaultTransitionDurationSeconds: 0.75
   };
