@@ -1,7 +1,7 @@
 /**
  * Copyright (C) 2026 by Pedro Sanders. MIT.
  *
- * `motionkit config` — registers the built MotionKit MCP server
+ * `motionkit mcp-config` — registers the built MotionKit MCP server
  * (`@motionkit/mcp`) with an MCP-aware client's config file, so the client
  * can launch it without the user hand-editing JSON. Defaults to `--client
  * claude` (Claude Desktop), the only client this phase supports — the flag
@@ -23,7 +23,7 @@ function isSupportedClient(value: string): value is McpClient {
   return (SUPPORTED_CLIENTS as readonly string[]).includes(value);
 }
 
-export default class Config extends Command {
+export default class McpConfig extends Command {
   static override description =
     "Registers the MotionKit MCP server with an MCP-aware client's config file.";
 
@@ -39,7 +39,7 @@ export default class Config extends Command {
   };
 
   override async run(): Promise<void> {
-    const { flags } = await this.parse(Config);
+    const { flags } = await this.parse(McpConfig);
 
     if (!isSupportedClient(flags.client)) {
       this.log(

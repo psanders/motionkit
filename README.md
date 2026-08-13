@@ -30,7 +30,7 @@ closing out Phase 3. Phase 4 (MCP tool surface) is next.
   `ping` tool — the real tool surface is Phase 4).
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI, installable globally from this checkout
   (`npm install -g ./packages/cli`) as the `motionkit` command: `motionkit validate <spec.json>`,
-  `motionkit render <spec.json>`, and `motionkit config` to register `@motionkit/mcp` with an
+  `motionkit render <spec.json>`, and `motionkit mcp-config` to register `@motionkit/mcp` with an
   MCP-aware client. See `packages/cli/examples/` for runnable examples: a Phase 1 spec, a
   brand/caption/frame/logo/transition-demonstrating Phase 2 spec, a motion/phone-frame/
   `1:1`-demonstrating Phase 3a spec, and an overlays/PIP-demonstrating Phase 3b spec.
@@ -307,13 +307,13 @@ Four commands exist today (`packages/cli/src/commands/`):
   The `--output`/`-o` flag is optional — when omitted, the output MP4 is written alongside the
   spec file, same base name, `.mp4` extension (e.g. `path/to/spec.mp4`).
 
-- **`motionkit config`** — registers the built `@motionkit/mcp` server with an MCP-aware client's
-  config file, so the client can launch MotionKit's MCP tools without hand-editing JSON.
+- **`motionkit mcp-config`** — registers the built `@motionkit/mcp` server with an MCP-aware
+  client's config file, so the client can launch MotionKit's MCP tools without hand-editing JSON.
 
   ```bash
-  motionkit config
-  motionkit config --client claude
-  motionkit config --path /custom/config/location.json
+  motionkit mcp-config
+  motionkit mcp-config --client claude
+  motionkit mcp-config --path /custom/config/location.json
   ```
 
   `--client` defaults to `claude` (Claude Desktop) — the only client supported this phase, though

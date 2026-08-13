@@ -5,7 +5,7 @@ import { expect } from "chai";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import Config from "../src/commands/config.js";
+import McpConfig from "../src/commands/mcp-config.js";
 import {
   buildMotionkitServerEntry,
   mergeMcpServerConfig,
@@ -68,12 +68,12 @@ describe("mcpConfig helpers", () => {
   });
 });
 
-describe("motionkit config", () => {
+describe("motionkit mcp-config", () => {
   let workDir: string;
   let configPath: string;
 
   beforeEach(() => {
-    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "motionkit-cli-config-"));
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "motionkit-cli-mcp-config-"));
     configPath = path.join(workDir, "nested", "claude_desktop_config.json");
   });
 
@@ -83,7 +83,7 @@ describe("motionkit config", () => {
 
   it("should write the motionkit mcpServers entry to --path and exit 0", async () => {
     // Act
-    const result = await runCliCommand(Config, ["--path", configPath]);
+    const result = await runCliCommand(McpConfig, ["--path", configPath]);
 
     // Assert
     expect(result.exitCode).to.equal(0);
@@ -102,7 +102,7 @@ describe("motionkit config", () => {
     );
 
     // Act
-    const result = await runCliCommand(Config, ["--path", configPath]);
+    const result = await runCliCommand(McpConfig, ["--path", configPath]);
 
     // Assert
     expect(result.exitCode).to.equal(0);
@@ -113,7 +113,7 @@ describe("motionkit config", () => {
 
   it("should reject an unsupported --client and exit non-zero", async () => {
     // Act
-    const result = await runCliCommand(Config, ["--client", "cursor", "--path", configPath]);
+    const result = await runCliCommand(McpConfig, ["--client", "cursor", "--path", configPath]);
 
     // Assert
     expect(result.exitCode).to.not.equal(0);
