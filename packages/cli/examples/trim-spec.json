@@ -1,0 +1,29 @@
+{
+  "version": "1",
+  "format": "16:9",
+  "fps": 30,
+  "scenes": [
+    {
+      "type": "a_roll",
+      "asset": "assets/interview.mp4",
+      "duration": 3,
+      "sourceStartSeconds": 2,
+      "sourceEndSeconds": 5
+    },
+    {
+      "type": "b_roll",
+      "asset": "assets/broll-1.mp4",
+      "duration": 2,
+      "transition": { "type": "fade" }
+    }
+  ],
+  "overlays": [
+    {
+      "type": "pip",
+      "sceneIndex": 1,
+      "asset": "assets/webcam.mp4",
+      "audio": "muted",
+      "sourceStartSeconds": 1
+    }
+  ]
+}

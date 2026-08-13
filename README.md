@@ -85,15 +85,17 @@ declare a `transition`** — there's nothing before it to transition from.
 `scenes` is a discriminated union on `type`: `"a_roll"` (primary footage carrying its own audio)
 or `"b_roll"` (supporting footage). Both share the same base fields:
 
-| Field        | Type                             | Notes                                                                                                                                                                         |
-| :----------- | :------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `asset`      | non-empty string                 | Path to the source video, resolved relative to the spec's own directory.                                                                                                      |
-| `duration`   | number                           | Seconds. Must be positive — enforced semantically by `validate()`, not the schema, so it reports alongside other errors.                                                      |
-| `transition` | `{ type, duration? }`, optional  | `type` is one of `fade`, `slide-left`, `slide-right`, `zoom`. `duration` (seconds) is optional — omitted falls back to the active brand's `defaultTransitionDurationSeconds`. |
-| `caption`    | string, optional                 | Text overlaid for the scene's duration, styled from the active brand's caption tokens. Must be non-empty if present.                                                          |
-| `frame`      | `"browser" \| "phone"`, optional | A static, decorative chrome wrapper around the scene's visual content.                                                                                                        |
-| `logo`       | `true \| { position }`, optional | `true` uses the active brand's default logo placement; an object overrides it. `position` is one of `top_left`, `top_right`, `bottom_left`, `bottom_right`, `center`.         |
-| `motion`     | discriminated union, optional    | Semantic pan/zoom/crop intent — see below. Omitted = a fixed, centered cover-crop.                                                                                            |
+| Field                | Type                             | Notes                                                                                                                                                                                                                                                       |
+| :------------------- | :------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `asset`              | non-empty string                 | Path to the source video, resolved relative to the spec's own directory.                                                                                                                                                                                    |
+| `duration`           | number                           | Seconds. Must be positive — enforced semantically by `validate()`, not the schema, so it reports alongside other errors.                                                                                                                                    |
+| `transition`         | `{ type, duration? }`, optional  | `type` is one of `fade`, `slide-left`, `slide-right`, `zoom`. `duration` (seconds) is optional — omitted falls back to the active brand's `defaultTransitionDurationSeconds`.                                                                               |
+| `caption`            | string, optional                 | Text overlaid for the scene's duration, styled from the active brand's caption tokens. Must be non-empty if present.                                                                                                                                        |
+| `frame`              | `"browser" \| "phone"`, optional | A static, decorative chrome wrapper around the scene's visual content.                                                                                                                                                                                      |
+| `logo`               | `true \| { position }`, optional | `true` uses the active brand's default logo placement; an object overrides it. `position` is one of `top_left`, `top_right`, `bottom_left`, `bottom_right`, `center`.                                                                                       |
+| `motion`             | discriminated union, optional    | Semantic pan/zoom/crop intent — see below. Omitted = a fixed, centered cover-crop.                                                                                                                                                                          |
+| `sourceStartSeconds` | non-negative number, optional    | Where in `asset` playback begins, instead of always starting at 0. `duration` remains the sole driver of how long the scene plays — this only shifts the source offset.                                                                                     |
+| `sourceEndSeconds`   | non-negative number, optional    | An optional bound on where in `asset` playback may end. Must be strictly greater than `sourceStartSeconds` when both are present; not required to equal `sourceStartSeconds + duration` — it's a loose guard rail, not a second source of truth for length. |
 
 `b_roll` scenes additionally take:
 
@@ -102,6 +104,15 @@ or `"b_roll"` (supporting footage). Both share the same base fields:
 | `audio` | `"continue" \| "muted"` | Defaults to `"continue"` (keeps playing the preceding A-roll's audio track) if omitted. |
 
 `a_roll` scenes have no `audio` field — they always carry their own audio.
+
+`sourceStartSeconds`/`sourceEndSeconds` let one source file be reused across multiple scenes, or
+as both an A-roll and a later PIP overlay, without pre-cutting it by hand — point different
+scenes/overlays at different offset ranges within the same `asset`. `sourceEndSeconds > sourceStartSeconds`
+is checked structurally by the schema; whether the requested range actually fits the asset's real,
+measured length (and is long enough to cover `duration`) can only be checked at render time (it
+needs an `ffprobe` shell-out `validate()` deliberately never performs) — a range that doesn't fit
+refuses the render with a `SOURCE_RANGE_EXCEEDS_ASSET_DURATION` error rather than silently
+freezing the last frame or dropping audio.
 
 ### `motion`: pan/zoom/crop intent
 
@@ -129,14 +140,15 @@ composition's.
 a video bubble, the "webcam-narrating-over-B-roll" pattern). Each overlay is _scene-anchored_, not
 time-anchored — it references a scene by index, not an absolute time range:
 
-| Field        | Type                           | Notes                                                                                                                                                                                                                                                                                           |
-| :----------- | :----------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sceneIndex` | integer                        | Index into `scenes[]` this overlay renders on top of. Bounds-checked semantically by `validate()`.                                                                                                                                                                                              |
-| `asset`      | non-empty string               | Path to the overlay's video, resolved relative to the spec's own directory.                                                                                                                                                                                                                     |
-| `position`   | placement, optional            | Defaults to the active brand's `pipStyle.defaultPosition` when omitted.                                                                                                                                                                                                                         |
-| `shape`      | `"circle" \| "rounded_square"` | Defaults to `"circle"`.                                                                                                                                                                                                                                                                         |
-| `size`       | `"sm" \| "md" \| "lg"`         | Defaults to `"md"`. Mapped to real pixels via the active brand's `pipStyle.size` scale.                                                                                                                                                                                                         |
-| `audio`      | `"own" \| "muted"`             | Required. `"own"` plays the overlay's own asset audio (the common case: no separate A-roll at all, just a narrating webcam bubble over continuous B-roll). `"muted"` contributes no audio. There's deliberately no automatic ducking against the scene's own audio if both are present at once. |
+| Field                                     | Type                           | Notes                                                                                                                                                                                                                                                                                           |
+| :---------------------------------------- | :----------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sceneIndex`                              | integer                        | Index into `scenes[]` this overlay renders on top of. Bounds-checked semantically by `validate()`.                                                                                                                                                                                              |
+| `asset`                                   | non-empty string               | Path to the overlay's video, resolved relative to the spec's own directory.                                                                                                                                                                                                                     |
+| `position`                                | placement, optional            | Defaults to the active brand's `pipStyle.defaultPosition` when omitted.                                                                                                                                                                                                                         |
+| `shape`                                   | `"circle" \| "rounded_square"` | Defaults to `"circle"`.                                                                                                                                                                                                                                                                         |
+| `size`                                    | `"sm" \| "md" \| "lg"`         | Defaults to `"md"`. Mapped to real pixels via the active brand's `pipStyle.size` scale.                                                                                                                                                                                                         |
+| `audio`                                   | `"own" \| "muted"`             | Required. `"own"` plays the overlay's own asset audio (the common case: no separate A-roll at all, just a narrating webcam bubble over continuous B-roll). `"muted"` contributes no audio. There's deliberately no automatic ducking against the scene's own audio if both are present at once. |
+| `sourceStartSeconds` / `sourceEndSeconds` | non-negative numbers, optional | Same semantics as a scene's own fields above (see that row), applied to the overlay's own `asset`.                                                                                                                                                                                              |
 
 ### How `brand` resolves
 
@@ -238,6 +250,9 @@ is documented (feature-by-feature) in its own README:
 - `packages/cli/examples/overlays-spec.json` — the `overlays` array and the `pip` type, including
   a `b_roll` scene with no A-roll behind it at all (audio carried entirely by an `audio: "own"`
   PIP).
+- `packages/cli/examples/trim-spec.json` — `sourceStartSeconds`/`sourceEndSeconds` on both a
+  scene and a PIP overlay, reusing one longer source file's middle/offset range instead of a
+  hand-pre-cut clip.
 - `demos/fonoster-intro/spec-16x9.json` (and its `spec-9x16.json` sibling) — a full, real-world
   (non-synthetic-asset) spec: A-roll intro → PIP+B-roll → A-roll → PIP+B-roll, real brand colors,
   documented scene-by-scene in `demos/fonoster-intro/README.md`.

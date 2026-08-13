@@ -137,7 +137,7 @@ export function Timeline({ spec, brand, assetDimensions }: TimelineProps) {
           from={span.fromFrame}
           durationInFrames={span.durationInFrames}
         >
-          <Audio src={staticFile(span.asset)} />
+          <Audio src={staticFile(span.asset)} trimBefore={span.sourceStartFrame} />
         </Sequence>
       ))}
       {overlayAudioSpans.map((span, index) => (
@@ -146,7 +146,7 @@ export function Timeline({ spec, brand, assetDimensions }: TimelineProps) {
           from={span.fromFrame}
           durationInFrames={span.durationInFrames}
         >
-          <Audio src={staticFile(span.asset)} />
+          <Audio src={staticFile(span.asset)} trimBefore={span.sourceStartFrame} />
         </Sequence>
       ))}
     </AbsoluteFill>
@@ -232,6 +232,7 @@ function SceneVisual({
   targetHeight: number;
 }) {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const transitionCss = transitionStyle(scene.transition?.type, frame, transitionDurationInFrames);
   const crop = resolveCropTransform({
     sourceWidth: sourceDimensions.width,
@@ -242,12 +243,23 @@ function SceneVisual({
     frame,
     durationInFrames
   });
+  // Undeclared source offset fields resolve to `undefined` trim props —
+  // Remotion's own default (play from frame 0, no upper bound) — so a scene
+  // with neither field renders byte-identically to before this capability
+  // existed (see design.md decision #3 in the `source-offset-trim` OpenSpec
+  // change).
+  const trimBefore =
+    scene.sourceStartSeconds !== undefined ? Math.round(scene.sourceStartSeconds * fps) : undefined;
+  const trimAfter =
+    scene.sourceEndSeconds !== undefined ? Math.round(scene.sourceEndSeconds * fps) : undefined;
 
   return (
     <AbsoluteFill style={{ ...transitionCss, overflow: "hidden" }}>
       <OffthreadVideo
         src={staticFile(scene.asset)}
         muted
+        trimBefore={trimBefore}
+        trimAfter={trimAfter}
         style={{
           position: "absolute",
           top: 0,
@@ -432,6 +444,7 @@ const PIP_POSITION_STYLES = positionStyles(PIP_EDGE_INSET_PX);
 
 /** Renders a PIP overlay: a shape-clipped, cover-scaled video bubble on top of a scene's other layers, sized/positioned/styled per the active brand's `pipStyle` and the overlay's own `position`/`shape`/`size` overrides. No pan/zoom applied to the bubble's own content this phase — see design.md Non-Goals. */
 function PipOverlay({ overlay, brand }: { overlay: PipOverlay; brand: Brand }) {
+  const { fps } = useVideoConfig();
   const { pipStyle } = brand;
   const position = overlay.position ?? pipStyle.defaultPosition;
   const sizePx = pipStyle.size[overlay.size];
@@ -439,6 +452,14 @@ function PipOverlay({ overlay, brand }: { overlay: PipOverlay; brand: Brand }) {
     overlay.shape === "circle" ? sizePx / 2 : sizePx * PIP_ROUNDED_SQUARE_RADIUS_RATIO;
   const border =
     pipStyle.borderWidth > 0 ? `${pipStyle.borderWidth}px solid ${pipStyle.borderColor}` : "none";
+  // Same "undeclared = Remotion's own default" reasoning as `SceneVisual`'s
+  // trim props above.
+  const trimBefore =
+    overlay.sourceStartSeconds !== undefined
+      ? Math.round(overlay.sourceStartSeconds * fps)
+      : undefined;
+  const trimAfter =
+    overlay.sourceEndSeconds !== undefined ? Math.round(overlay.sourceEndSeconds * fps) : undefined;
 
   return (
     <AbsoluteFill>
@@ -457,6 +478,8 @@ function PipOverlay({ overlay, brand }: { overlay: PipOverlay; brand: Brand }) {
         <OffthreadVideo
           src={staticFile(overlay.asset)}
           muted
+          trimBefore={trimBefore}
+          trimAfter={trimAfter}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       </div>

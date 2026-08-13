@@ -1,6 +1,6 @@
 # Example Video Specifications
 
-Four small specs for manually smoke-testing `motionkit validate`/`motionkit render` against real
+Five small specs for manually smoke-testing `motionkit validate`/`motionkit render` against real
 (synthetic) assets, without an MCP client attached.
 
 ```bash
@@ -17,6 +17,9 @@ node ../bin/run.js render motion-spec.json    # writes motion-spec.mp4 alongside
 
 node ../bin/run.js validate overlays-spec.json
 node ../bin/run.js render overlays-spec.json  # writes overlays-spec.mp4 alongside overlays-spec.json
+
+node ../bin/run.js validate trim-spec.json
+node ../bin/run.js render trim-spec.json      # writes trim-spec.mp4 alongside trim-spec.json
 ```
 
 ## `spec.json` — Phase 1 (Foundation)
@@ -60,3 +63,13 @@ discussed and confirmed sufficient in place of an animated bubble-to-fullscreen 
 has a second PIP overlay with every override exercised at once: `position: "top_right"`,
 `shape: "rounded_square"`, `size: "lg"`, and `audio: "muted"` (silent, so it doesn't compete with
 whatever audio the scene's own chain would otherwise produce).
+
+## `trim-spec.json` — `source-offset-trim`
+
+Exercises `sourceStartSeconds`/`sourceEndSeconds`. `generate-assets.sh` already makes
+`interview.mp4` 6s long even though `spec.json` only ever plays 3s of it from the start — here,
+scene 0 instead plays the _middle_ 3s (`sourceStartSeconds: 2`, `sourceEndSeconds: 5`) of that
+same file, rather than requiring a hand-pre-cut clip. Scene 1's PIP overlay similarly plays
+`webcam.mp4` starting 1s in (`sourceStartSeconds: 1`) instead of from its start. `duration` still
+drives how long each plays on the timeline; the source fields only shift where in the file
+playback begins.

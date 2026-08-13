@@ -15,7 +15,11 @@ import { loadBrand } from "../brand/registry.js";
 import { validate } from "../validation/validate.js";
 import type { StructuredError } from "../validation/errors.js";
 import type { VideoSpec } from "../video-spec/types.js";
-import { probeAssetDimensions, type AssetDimensions } from "./probeAssetDimensions.js";
+import {
+  checkSourceRangeFitsAsset,
+  probeAssetDimensions,
+  type AssetDimensions
+} from "./probeAssetDimensions.js";
 import { resolveBrandAssets } from "./resolveBrandAssets.js";
 
 // The bundler needs the entry's actual file: `.tsx` when running against
@@ -47,6 +51,48 @@ function compositionIdFor(format: VideoSpec["format"]): string {
   if (format === "16:9") return "MotionKit16x9";
   if (format === "9:16") return "MotionKit9x16";
   return "MotionKit1x1";
+}
+
+/**
+ * Checks every scene's and overlay's declared `sourceStartSeconds`/
+ * `sourceEndSeconds` against its asset's real, measured duration (see
+ * `probeAssetDimensions.ts`'s `checkSourceRangeFitsAsset` — this requires an
+ * `ffprobe` shell-out `validate()` deliberately never performs, so it can
+ * only run here at render time). A PIP overlay has no `duration` field of
+ * its own — it renders for its target scene's own `duration` — so its check
+ * borrows that scene's duration; an overlay whose `sceneIndex` is out of
+ * range is skipped here since `validate()` already refuses to render such a
+ * spec before this function is ever called.
+ */
+function checkSourceRanges(spec: VideoSpec, specDir: string): StructuredError[] {
+  const errors: StructuredError[] = [];
+
+  spec.scenes.forEach((scene, index) => {
+    const error = checkSourceRangeFitsAsset({
+      assetPath: path.resolve(specDir, scene.asset),
+      sourceStartSeconds: scene.sourceStartSeconds,
+      sourceEndSeconds: scene.sourceEndSeconds,
+      durationSeconds: scene.duration,
+      itemPath: `scenes.${index}`
+    });
+    if (error) errors.push(error);
+  });
+
+  spec.overlays?.forEach((overlay, index) => {
+    const targetScene = spec.scenes[overlay.sceneIndex];
+    if (!targetScene) return;
+
+    const error = checkSourceRangeFitsAsset({
+      assetPath: path.resolve(specDir, overlay.asset),
+      sourceStartSeconds: overlay.sourceStartSeconds,
+      sourceEndSeconds: overlay.sourceEndSeconds,
+      durationSeconds: targetScene.duration,
+      itemPath: `overlays.${index}`
+    });
+    if (error) errors.push(error);
+  });
+
+  return errors;
 }
 
 /** Probes every scene's asset once (per unique path), keyed by the scene's own `asset` string so `Timeline.tsx` can look dimensions up by the same key spec authors use. Needed by the crop/pan/zoom math in `cropTransform.ts`, which requires the source's real dimensions, not just the target composition's. */
@@ -110,6 +156,11 @@ export async function render(spec: VideoSpec, specDir: string, outputPath: strin
 
   if (!validation.valid) {
     throw new RenderValidationError(validation.errors);
+  }
+
+  const sourceRangeErrors = checkSourceRanges(spec, specDir);
+  if (sourceRangeErrors.length > 0) {
+    throw new RenderValidationError(sourceRangeErrors);
   }
 
   // `validate()` above already confirmed `spec.brand` resolves, so

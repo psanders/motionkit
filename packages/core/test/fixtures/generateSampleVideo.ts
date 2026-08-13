@@ -31,15 +31,21 @@ export interface SampleVideoOptions {
    * The `lavfi` visual source. `"testsrc"` is a generic test pattern; a
    * solid `color` (e.g. `"red"`) makes clips trivially distinguishable by
    * sampling a single pixel, which the rendering tests use to assert scene
-   * order. `"split-horizontal"`/`"split-vertical"` are two-color halves
-   * (`color`/`secondColor`) — used to verify pan *direction*: a whole-frame
-   * pixel average shifts from one color toward the other as the crop window
-   * moves across the source, which a single solid color can't demonstrate.
+   * order. `"split-horizontal"`/`"split-vertical"` are two-color halves,
+   * split *spatially* (`color`/`secondColor`) — used to verify pan
+   * *direction*: a whole-frame pixel average shifts from one color toward
+   * the other as the crop window moves across the source, which a single
+   * solid color can't demonstrate. `"time-split"` is instead split
+   * *temporally* — `color` for the source's first half-duration, then
+   * `secondColor` for its second half — the source-offset-trim suite's way
+   * of proving a `sourceStartSeconds` actually skips playback forward within
+   * one asset, which a spatially-split or solid-color source (constant at
+   * every timestamp) can't demonstrate.
    */
-  visual?: "testsrc" | "color" | "split-horizontal" | "split-vertical";
-  /** Solid fill color when `visual: "color"`, or the first half's color when `visual: "split-*"` (any ffmpeg color name, e.g. `"red"`). */
+  visual?: "testsrc" | "color" | "split-horizontal" | "split-vertical" | "time-split";
+  /** Solid fill color when `visual: "color"`, the first half's color when `visual: "split-*"`, or the first half-duration's color when `visual: "time-split"` (any ffmpeg color name, e.g. `"red"`). */
   color?: string;
-  /** The second half's color when `visual: "split-*"`. */
+  /** The second half's color when `visual: "split-*"`, or the second half-duration's color when `visual: "time-split"`. */
   secondColor?: string;
 }
 
@@ -68,6 +74,46 @@ export function generateSampleVideo(options: SampleVideoOptions): string {
   const outputPath = path.join(FIXTURES_DIR, name);
 
   if (fs.existsSync(outputPath)) {
+    return outputPath;
+  }
+
+  if (visual === "time-split") {
+    const halfDuration = duration / 2;
+
+    execFileSync(
+      "ffmpeg",
+      [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        `color=c=${color}:size=${width}x${height}:rate=${fps}:duration=${halfDuration}`,
+        "-f",
+        "lavfi",
+        "-i",
+        `color=c=${secondColor}:size=${width}x${height}:rate=${fps}:duration=${halfDuration}`,
+        "-f",
+        "lavfi",
+        "-i",
+        `sine=frequency=${toneHz}:duration=${duration}`,
+        "-filter_complex",
+        "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "2:a",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-shortest",
+        outputPath
+      ],
+      { stdio: "pipe" }
+    );
+
     return outputPath;
   }
 
