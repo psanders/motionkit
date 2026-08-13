@@ -771,4 +771,197 @@ describe("videoSpecSchema", () => {
     // Assert
     expect(result.success).to.equal(false);
   });
+
+  describe("sourceStartSeconds / sourceEndSeconds", () => {
+    it("should accept a scene with sourceStartSeconds only", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, sourceStartSeconds: 12.5 }]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(true);
+      if (result.success) {
+        expect(result.data.scenes[0]?.sourceStartSeconds).to.equal(12.5);
+      }
+    });
+
+    it("should accept a scene with both sourceStartSeconds and sourceEndSeconds", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          scenes: [
+            {
+              type: "a_roll",
+              asset: "clip.mp4",
+              duration: 5,
+              sourceStartSeconds: 12.5,
+              sourceEndSeconds: 20
+            }
+          ]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(true);
+      if (result.success) {
+        expect(result.data.scenes[0]?.sourceEndSeconds).to.equal(20);
+      }
+    });
+
+    it("should accept a scene with neither field, unchanged from prior behavior", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({ scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5 }] })
+      );
+
+      // Assert
+      expect(result.success).to.equal(true);
+      if (result.success) {
+        expect(result.data.scenes[0]?.sourceStartSeconds).to.equal(undefined);
+        expect(result.data.scenes[0]?.sourceEndSeconds).to.equal(undefined);
+      }
+    });
+
+    it("should reject a negative sourceStartSeconds", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, sourceStartSeconds: -1 }]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(false);
+    });
+
+    it("should reject a negative sourceEndSeconds", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, sourceEndSeconds: -1 }]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(false);
+    });
+
+    it("should reject a scene where sourceEndSeconds is not greater than sourceStartSeconds", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          scenes: [
+            {
+              type: "a_roll",
+              asset: "clip.mp4",
+              duration: 5,
+              sourceStartSeconds: 10,
+              sourceEndSeconds: 10
+            }
+          ]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(false);
+    });
+
+    it("should reject a b_roll scene where sourceEndSeconds is less than sourceStartSeconds", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          scenes: [
+            { type: "a_roll", asset: "a.mp4", duration: 5 },
+            {
+              type: "b_roll",
+              asset: "b.mp4",
+              duration: 3,
+              sourceStartSeconds: 10,
+              sourceEndSeconds: 5
+            }
+          ]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(false);
+    });
+
+    it("should accept a PIP overlay with sourceStartSeconds only", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          overlays: [
+            { type: "pip", sceneIndex: 0, asset: "webcam.mp4", audio: "own", sourceStartSeconds: 5 }
+          ]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(true);
+      if (result.success && result.data.overlays?.[0]?.type === "pip") {
+        expect(result.data.overlays[0].sourceStartSeconds).to.equal(5);
+      }
+    });
+
+    it("should accept a PIP overlay with neither source field", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          overlays: [{ type: "pip", sceneIndex: 0, asset: "webcam.mp4", audio: "own" }]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(true);
+      if (result.success && result.data.overlays?.[0]?.type === "pip") {
+        expect(result.data.overlays[0].sourceStartSeconds).to.equal(undefined);
+        expect(result.data.overlays[0].sourceEndSeconds).to.equal(undefined);
+      }
+    });
+
+    it("should reject a PIP overlay where sourceEndSeconds is not greater than sourceStartSeconds", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          overlays: [
+            {
+              type: "pip",
+              sceneIndex: 0,
+              asset: "webcam.mp4",
+              audio: "own",
+              sourceStartSeconds: 10,
+              sourceEndSeconds: 8
+            }
+          ]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(false);
+    });
+
+    it("should reject a negative sourceStartSeconds on a PIP overlay", () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          overlays: [
+            {
+              type: "pip",
+              sceneIndex: 0,
+              asset: "webcam.mp4",
+              audio: "own",
+              sourceStartSeconds: -2
+            }
+          ]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(false);
+    });
+  });
 });

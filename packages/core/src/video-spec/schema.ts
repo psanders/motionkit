@@ -6,6 +6,7 @@
  * ordered timeline of scenes. This is the contract between the
  * creative/AI layer and the MotionKit rendering engine.
  */
+import type { core } from "zod/v4";
 import { z } from "zod/v4";
 import { placementSchema } from "../brand/schema.js";
 
@@ -101,6 +102,55 @@ export const motionSchema = z.discriminatedUnion("type", [
 /** A scene's optional logo overlay: either `true` (use the active brand's default placement) or an explicit position override. */
 export const sceneLogoSchema = z.union([z.literal(true), z.object({ position: placementSchema })]);
 
+/**
+ * Shared source-offset/trim-range fields, mixed into both `sceneBaseSchema`
+ * and `pipOverlaySchema` (see design.md decision #1 in the
+ * `source-offset-trim` OpenSpec change). Both optional; when
+ * `sourceStartSeconds` is omitted, playback starts at 0 exactly as before
+ * this capability existed. `duration` (on a scene) or the overlay's own
+ * implicit duration remains the sole driver of how long playback lasts —
+ * these fields only shift *where in the source file* playback begins (and
+ * optionally bound where it may end). Non-negativity is enforced
+ * structurally via `.nonnegative()`; `sourceEndSeconds > sourceStartSeconds`
+ * is enforced by each schema's own `.check()` below (see
+ * `checkSourceRange`), since it needs both fields at once.
+ */
+const sourceRangeSchema = {
+  sourceStartSeconds: z.number().nonnegative().optional(),
+  sourceEndSeconds: z.number().nonnegative().optional()
+};
+
+/**
+ * Pushes a structural Zod issue when `sourceEndSeconds` doesn't exceed
+ * `sourceStartSeconds` (and both are present). Shared by `aRollSceneSchema`,
+ * `bRollSceneSchema`, and `pipOverlaySchema` via each schema's own
+ * `.check()` — the issue's `path` is relative to the object being checked
+ * (`["sourceEndSeconds"]`), and Zod automatically prefixes it with the full
+ * ancestor path (e.g. `scenes.1.sourceEndSeconds`) once nested inside
+ * `videoSpecSchema`, exactly like the top-level `.check()` below. Reported
+ * as a generic `code: "custom"` issue — deliberately not a dedicated
+ * `StructuredErrorCode`, since `validate.ts`'s `toStructuredError` already
+ * falls through unmatched issues to `MALFORMED_SPEC` (see design.md
+ * decision #2).
+ */
+function checkSourceRange<T extends { sourceStartSeconds?: number; sourceEndSeconds?: number }>(
+  ctx: core.ParsePayload<T>
+): void {
+  const { sourceStartSeconds, sourceEndSeconds } = ctx.value;
+  if (
+    sourceStartSeconds !== undefined &&
+    sourceEndSeconds !== undefined &&
+    sourceEndSeconds <= sourceStartSeconds
+  ) {
+    ctx.issues.push({
+      code: "custom",
+      message: `sourceEndSeconds (${sourceEndSeconds}) must be greater than sourceStartSeconds (${sourceStartSeconds}).`,
+      path: ["sourceEndSeconds"],
+      input: ctx.value
+    });
+  }
+}
+
 /** Fields shared by every scene type. */
 const sceneBaseSchema = {
   asset: z.string().min(1, "Asset path is required"),
@@ -126,14 +176,17 @@ const sceneBaseSchema = {
   /** Overlays the active brand's logo on this scene. */
   logo: sceneLogoSchema.optional(),
   /** Semantic pan/zoom/crop intent, independent of `frame` — usable with or without one. Omitted = a fixed, centered cover-crop (equivalent to `{ type: "static" }` with a centered focal point). */
-  motion: motionSchema.optional()
+  motion: motionSchema.optional(),
+  ...sourceRangeSchema
 };
 
 /** An A-roll scene: primary footage carrying its own audio. */
-export const aRollSceneSchema = z.object({
-  type: z.literal("a_roll"),
-  ...sceneBaseSchema
-});
+export const aRollSceneSchema = z
+  .object({
+    type: z.literal("a_roll"),
+    ...sceneBaseSchema
+  })
+  .check(checkSourceRange);
 
 /** Whether a B-roll scene continues the preceding A-roll's audio or is silent. */
 export const bRollAudioSchema = z.enum(["continue", "muted"], {
@@ -141,11 +194,13 @@ export const bRollAudioSchema = z.enum(["continue", "muted"], {
 });
 
 /** A B-roll scene: supporting footage, audio defaults to continuing the preceding A-roll. */
-export const bRollSceneSchema = z.object({
-  type: z.literal("b_roll"),
-  ...sceneBaseSchema,
-  audio: bRollAudioSchema.default("continue")
-});
+export const bRollSceneSchema = z
+  .object({
+    type: z.literal("b_roll"),
+    ...sceneBaseSchema,
+    audio: bRollAudioSchema.default("continue")
+  })
+  .check(checkSourceRange);
 
 /** A scene is either A-roll or B-roll, discriminated on `type`. */
 export const sceneSchema = z.discriminatedUnion("type", [aRollSceneSchema, bRollSceneSchema]);
@@ -172,21 +227,24 @@ export const pipSizeSchema = z.enum(["sm", "md", "lg"], {
  * document (to know `scenes.length`), so it's a semantic check in
  * `validate.ts`, not structural here — same reasoning as `duration` above.
  */
-export const pipOverlaySchema = z.object({
-  type: z.literal("pip"),
-  // Deliberately not `.nonnegative()` here — an out-of-range sceneIndex
-  // (negative or beyond the last scene) is a semantic rule enforced by
-  // `validate()`, not a structural one, for the same "collect alongside
-  // other violations, don't short-circuit" reason `duration` isn't
-  // constrained structurally either (see this field's design.md decision #2).
-  sceneIndex: z.number().int(),
-  asset: z.string().min(1, "Asset path is required"),
-  /** Defers to the active brand's `pipStyle.defaultPosition` when omitted — same pattern `sceneLogoSchema` already uses. */
-  position: placementSchema.optional(),
-  shape: pipShapeSchema.default("circle"),
-  size: pipSizeSchema.default("md"),
-  audio: pipAudioSchema
-});
+export const pipOverlaySchema = z
+  .object({
+    type: z.literal("pip"),
+    // Deliberately not `.nonnegative()` here — an out-of-range sceneIndex
+    // (negative or beyond the last scene) is a semantic rule enforced by
+    // `validate()`, not a structural one, for the same "collect alongside
+    // other violations, don't short-circuit" reason `duration` isn't
+    // constrained structurally either (see this field's design.md decision #2).
+    sceneIndex: z.number().int(),
+    asset: z.string().min(1, "Asset path is required"),
+    /** Defers to the active brand's `pipStyle.defaultPosition` when omitted — same pattern `sceneLogoSchema` already uses. */
+    position: placementSchema.optional(),
+    shape: pipShapeSchema.default("circle"),
+    size: pipSizeSchema.default("md"),
+    audio: pipAudioSchema,
+    ...sourceRangeSchema
+  })
+  .check(checkSourceRange);
 
 /** An overlay is a discriminated union on `type` — `"pip"` is the only variant this phase, but the shape leaves room for future overlay types (e.g. a music bed) without changing `overlays`'s own shape. */
 export const overlaySchema = z.discriminatedUnion("type", [pipOverlaySchema]);

@@ -597,4 +597,117 @@ describe("validate", () => {
       expect(codes).to.deep.equal(["ASSET_NOT_FOUND", "OVERLAY_SCENE_INDEX_OUT_OF_RANGE"]);
     }
   });
+
+  it("should accept a scene with a valid sourceStartSeconds/sourceEndSeconds range", () => {
+    // Arrange
+    const spec = validSpec({
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "a.mp4",
+          duration: 5,
+          sourceStartSeconds: 2,
+          sourceEndSeconds: 10
+        }
+      ]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(true);
+  });
+
+  it("should reject a scene whose sourceEndSeconds does not exceed sourceStartSeconds", () => {
+    // Arrange
+    const spec = validSpec({
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "a.mp4",
+          duration: 5,
+          sourceStartSeconds: 10,
+          sourceEndSeconds: 10
+        }
+      ]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      expect(result.errors.length).to.be.greaterThan(0);
+      const error = result.errors.find((e) => e.path?.includes("sourceEndSeconds"));
+      expect(error).to.not.equal(undefined);
+      expect(error?.code).to.equal("MALFORMED_SPEC");
+      expect(error?.path).to.equal("scenes.0.sourceEndSeconds");
+    }
+  });
+
+  it("should reject a PIP overlay whose sourceEndSeconds does not exceed sourceStartSeconds, identifying the overlay", () => {
+    // Arrange
+    const spec = validSpec({
+      overlays: [
+        {
+          type: "pip",
+          sceneIndex: 0,
+          asset: "a.mp4",
+          audio: "muted",
+          sourceStartSeconds: 5,
+          sourceEndSeconds: 3
+        }
+      ]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const error = result.errors.find((e) => e.path?.includes("sourceEndSeconds"));
+      expect(error).to.not.equal(undefined);
+      expect(error?.path).to.equal("overlays.0.sourceEndSeconds");
+    }
+  });
+
+  it("should not report a source-range-consistency violation when only sourceStartSeconds is declared", () => {
+    // Arrange
+    const spec = validSpec({
+      scenes: [{ type: "a_roll", asset: "a.mp4", duration: 5, sourceStartSeconds: 3 }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(true);
+  });
+
+  it("should never touch the filesystem beyond asset existence for source-range validation (no render side effect)", () => {
+    // Arrange — an invalid range on an otherwise-valid spec; validate() must
+    // report the failure without probing the asset (ffprobe) or writing
+    // anything, consistent with `validate()` staying synchronous and
+    // asset-blind beyond `fs.existsSync` (see design.md decision #2).
+    const spec = validSpec({
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "a.mp4",
+          duration: 5,
+          sourceStartSeconds: 5,
+          sourceEndSeconds: 1
+        }
+      ]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+  });
 });

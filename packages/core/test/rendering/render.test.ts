@@ -88,6 +88,18 @@ describe("render", function () {
       color: "red",
       secondColor: "blue"
     });
+    // A temporally-split source for the source-offset-trim suite: red for
+    // its first 3s, blue for its next 3s — long enough that a scene/overlay
+    // trimmed well into the blue half still has margin left over to cover a
+    // following chained B-roll's audio-continuity window.
+    generateSampleVideo({
+      name: "time-split.mp4",
+      duration: 6,
+      visual: "time-split",
+      color: "red",
+      secondColor: "blue",
+      toneHz: 550
+    });
   });
 
   beforeEach(() => {
@@ -992,5 +1004,167 @@ describe("render", function () {
     // inherited A-roll audio, the PIP's own audio, or (as designed) both at once
     const duringBRoll = getMeanVolumeDb(outputPath, 1.1, 0.7);
     expect(duringBRoll).to.be.greaterThan(AUDIBLE_THRESHOLD_DB);
+  });
+
+  it("should refuse to render a scene whose sourceStartSeconds is at or beyond the asset's real duration", async () => {
+    // Arrange — red.mp4 is only 3s long
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1, sourceStartSeconds: 10 }]
+    });
+    const outputPath = path.join(outDir, "should-not-exist-source-start.mp4");
+
+    // Act + Assert
+    try {
+      await render(spec, FIXTURES_DIR, outputPath);
+      expect.fail("expected render() to throw RenderValidationError");
+    } catch (err) {
+      expect(err).to.be.instanceOf(RenderValidationError);
+      if (err instanceof RenderValidationError) {
+        expect(err.errors.some((e) => e.code === "SOURCE_RANGE_EXCEEDS_ASSET_DURATION")).to.equal(
+          true
+        );
+      }
+    }
+    expect(fs.existsSync(outputPath)).to.equal(false);
+  });
+
+  it("should refuse to render a scene whose source range is too short to cover its declared duration", async () => {
+    // Arrange — a 1s source window requested to cover a 2s scene
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        {
+          type: "a_roll",
+          asset: "red.mp4",
+          duration: 2,
+          sourceStartSeconds: 0,
+          sourceEndSeconds: 1
+        }
+      ]
+    });
+    const outputPath = path.join(outDir, "should-not-exist-source-short.mp4");
+
+    // Act + Assert
+    try {
+      await render(spec, FIXTURES_DIR, outputPath);
+      expect.fail("expected render() to throw RenderValidationError");
+    } catch (err) {
+      expect(err).to.be.instanceOf(RenderValidationError);
+      if (err instanceof RenderValidationError) {
+        expect(err.errors.some((e) => e.code === "SOURCE_RANGE_EXCEEDS_ASSET_DURATION")).to.equal(
+          true
+        );
+      }
+    }
+    expect(fs.existsSync(outputPath)).to.equal(false);
+  });
+
+  it("should play a scene's visual from its declared sourceStartSeconds offset, distinct from the same asset without it", async () => {
+    // Arrange — time-split.mp4 is red for its first 3s, blue for its next 3s
+    const untrimmedSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "time-split.mp4", duration: 1 }]
+    });
+    const trimmedSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "time-split.mp4", duration: 1, sourceStartSeconds: 3.5 }]
+    });
+    const untrimmedPath = path.join(outDir, "trim-untrimmed.mp4");
+    const trimmedPath = path.join(outDir, "trim-trimmed.mp4");
+
+    // Act
+    await render(untrimmedSpec, FIXTURES_DIR, untrimmedPath);
+    await render(trimmedSpec, FIXTURES_DIR, trimmedPath);
+
+    // Assert — untrimmed starts red-dominant (source's first half); trimmed
+    // (offset into the second half) starts blue-dominant instead
+    const [rUntrimmed, , bUntrimmed] = getPixelAt(untrimmedPath, 0.5);
+    const [rTrimmed, , bTrimmed] = getPixelAt(trimmedPath, 0.5);
+    expect(rUntrimmed).to.be.greaterThan(bUntrimmed);
+    expect(bTrimmed).to.be.greaterThan(rTrimmed);
+  });
+
+  it("should keep a trimmed A-roll's audio continuing correctly under a chained 'continue' B-roll", async () => {
+    // Arrange — a_roll trimmed into time-split.mp4's blue half, then a
+    // continuing b_roll; the whole 2s audio span reads forward from the
+    // A-roll's own source offset (3.5s), well within the 2.5s of source
+    // remaining after that offset
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        { type: "a_roll", asset: "time-split.mp4", duration: 1, sourceStartSeconds: 3.5 },
+        { type: "b_roll", asset: "green.mp4", duration: 1 }
+      ]
+    });
+    const outputPath = path.join(outDir, "trim-audio-chain.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — audible throughout both the A-roll's own span and the
+    // continuing B-roll's span
+    const duringARoll = getMeanVolumeDb(outputPath, 0.1, 0.7);
+    const duringBRoll = getMeanVolumeDb(outputPath, 1.1, 0.7);
+    expect(duringARoll).to.be.greaterThan(AUDIBLE_THRESHOLD_DB);
+    expect(duringBRoll).to.be.greaterThan(AUDIBLE_THRESHOLD_DB);
+
+    // Assert — the visual reflects the trim (blue-dominant, not the source's untrimmed red start)
+    const [rStart, , bStart] = getPixelAt(outputPath, 0.5);
+    expect(bStart).to.be.greaterThan(rStart);
+  });
+
+  it("should render a PIP overlay's own-audio bubble and audio from its declared sourceStartSeconds offset", async () => {
+    // Arrange — same base scene, once with an untrimmed PIP overlay and once
+    // trimmed into time-split.mp4's blue half
+    const untrimmedSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "b_roll", asset: "green.mp4", duration: 1 }],
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "time-split.mp4", audio: "own" }]
+    });
+    const trimmedSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "b_roll", asset: "green.mp4", duration: 1 }],
+      overlays: [
+        {
+          type: "pip",
+          sceneIndex: 0,
+          asset: "time-split.mp4",
+          audio: "own",
+          sourceStartSeconds: 3.5
+        }
+      ]
+    });
+    const untrimmedPath = path.join(outDir, "pip-trim-untrimmed.mp4");
+    const trimmedPath = path.join(outDir, "pip-trim-trimmed.mp4");
+
+    // Act
+    await render(untrimmedSpec, FIXTURES_DIR, untrimmedPath);
+    await render(trimmedSpec, FIXTURES_DIR, trimmedPath);
+
+    // Assert — the bubble's own region shows the trim (blue-dominant instead of red)
+    const bubbleRegion = { x: 150, y: 800, width: 100, height: 100 };
+    const [rUntrimmed, , bUntrimmed] = getPixelAtRegion(untrimmedPath, 0.5, bubbleRegion);
+    const [rTrimmed, , bTrimmed] = getPixelAtRegion(trimmedPath, 0.5, bubbleRegion);
+    expect(rUntrimmed).to.be.greaterThan(bUntrimmed);
+    expect(bTrimmed).to.be.greaterThan(rTrimmed);
+
+    // Assert — the overlay's own audio is still audible after trimming
+    const volume = getMeanVolumeDb(trimmedPath, 0.1, 0.7);
+    expect(volume).to.be.greaterThan(AUDIBLE_THRESHOLD_DB);
   });
 });

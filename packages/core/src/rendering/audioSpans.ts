@@ -17,6 +17,17 @@ export interface AudioSpan {
   fromFrame: number;
   /** How many frames this audio keeps playing for. */
   durationInFrames: number;
+  /**
+   * The frame offset, within the source asset itself, this span's audio
+   * should start reading from — derived from the originating scene's/
+   * overlay's `sourceStartSeconds` (see design.md decision #3 in the
+   * `source-offset-trim` OpenSpec change). Populated once per span, not per
+   * scene the span's chain passes through: a chained A-roll's trim offset is
+   * a property of where the audio track begins, not of each B-roll scene
+   * that continues it. `undefined` when the originating asset declares no
+   * `sourceStartSeconds` — today's default-from-0 behavior, unchanged.
+   */
+  sourceStartFrame?: number;
 }
 
 /**
@@ -35,7 +46,14 @@ export function deriveAudioSpans(spec: VideoSpec): AudioSpan[] {
 
     if (scene.type === "a_roll") {
       if (current) spans.push(current);
-      current = { asset: scene.asset, fromFrame: frame, durationInFrames };
+      current = {
+        asset: scene.asset,
+        fromFrame: frame,
+        durationInFrames,
+        ...(scene.sourceStartSeconds !== undefined
+          ? { sourceStartFrame: Math.round(scene.sourceStartSeconds * spec.fps) }
+          : {})
+      };
     } else if (scene.audio === "continue" && current) {
       current.durationInFrames += durationInFrames;
     } else {
@@ -78,7 +96,13 @@ export function deriveOverlayAudioSpans(spec: VideoSpec): AudioSpan[] {
     // An out-of-range sceneIndex is a validation failure `render()` already
     // refuses to run against — `target` is always defined here in practice.
     if (!target) continue;
-    spans.push({ asset: overlay.asset, ...target });
+    spans.push({
+      asset: overlay.asset,
+      ...target,
+      ...(overlay.sourceStartSeconds !== undefined
+        ? { sourceStartFrame: Math.round(overlay.sourceStartSeconds * spec.fps) }
+        : {})
+    });
   }
 
   return spans;

@@ -22,7 +22,8 @@ export type StructuredErrorCode =
   | "MOTION_DIRECTION_MISMATCH"
   | "FOCAL_POINT_OUT_OF_BOUNDS"
   | "OVERLAY_SCENE_INDEX_OUT_OF_RANGE"
-  | "UNSUPPORTED_OVERLAY_POSITION";
+  | "UNSUPPORTED_OVERLAY_POSITION"
+  | "SOURCE_RANGE_EXCEEDS_ASSET_DURATION";
 
 /** One rule violation, with an optional path into the document and optional correction hints. */
 export interface StructuredError {
