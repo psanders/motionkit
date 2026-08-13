@@ -11,12 +11,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { core } from "zod/v4";
+import { findBrand } from "../brand/registry.js";
+import { placementSchema } from "../brand/schema.js";
 import { videoSpecSchema } from "../video-spec/schema.js";
 import type { VideoSpec } from "../video-spec/types.js";
 import type { StructuredError, ValidationResult } from "./errors.js";
 
 const SUPPORTED_FORMATS = ["16:9", "9:16"] as const;
-const SUPPORTED_TRANSITIONS = ["fade"] as const;
+const SUPPORTED_TRANSITIONS = ["fade", "slide-left", "slide-right", "zoom"] as const;
+const SUPPORTED_FRAMES = ["browser"] as const;
+const SUPPORTED_PLACEMENTS = placementSchema.options;
 
 /**
  * Validates an unknown value as a Video Specification.
@@ -79,12 +83,53 @@ function toStructuredError(issue: core.$ZodIssue, rawSpec: unknown): StructuredE
     };
   }
 
+  if (issuePath.endsWith("frame") && isInvalidValue) {
+    return {
+      code: "UNSUPPORTED_FRAME",
+      message: `Frame must be one of: ${SUPPORTED_FRAMES.join(", ")}`,
+      path: issuePath
+    };
+  }
+
+  if (issuePath.endsWith("logo") && isInvalidValue && isLogoPositionIssue(issue)) {
+    return {
+      code: "UNSUPPORTED_LOGO_POSITION",
+      message: `Logo position must be one of: ${SUPPORTED_PLACEMENTS.join(", ")}`,
+      path: `${issuePath}.position`
+    };
+  }
+
   return { code: "MALFORMED_SPEC", message: issue.message, path: issuePath || undefined };
 }
 
-/** Runs semantic checks (positive duration, asset existence) against a structurally valid spec. */
+/**
+ * `logo` is a union of `z.literal(true)` and `{ position: placementSchema }`,
+ * so an invalid `logo.position` surfaces as a Zod `invalid_union` issue at
+ * the `logo` path itself, with the actual `position` violation nested in one
+ * of the union's per-branch sub-issues. Distinguishes that case from an
+ * altogether wrong `logo` shape (e.g. a string), which should fall through
+ * to the generic `MALFORMED_SPEC` mapping instead.
+ */
+function isLogoPositionIssue(issue: core.$ZodIssue): boolean {
+  if (issue.code !== "invalid_union") return false;
+
+  const subIssues = (issue as unknown as { errors: core.$ZodIssue[][] }).errors ?? [];
+  return subIssues.flat().some((subIssue) => subIssue.path.join(".") === "position");
+}
+
+/** Runs semantic checks (brand resolution, positive duration, asset existence, non-empty captions) against a structurally valid spec. */
 function collectSemanticErrors(spec: VideoSpec, specDir: string): StructuredError[] {
   const errors: StructuredError[] = [];
+
+  const brandResult = findBrand(spec.brand, specDir);
+  if (!brandResult.found) {
+    errors.push({
+      code: "BRAND_NOT_FOUND",
+      message: `Unknown brand: ${spec.brand}`,
+      path: "brand",
+      ...(brandResult.availableIds.length > 0 ? { suggestions: brandResult.availableIds } : {})
+    });
+  }
 
   spec.scenes.forEach((scene, index) => {
     const scenePath = `scenes.${index}`;
@@ -100,6 +145,14 @@ function collectSemanticErrors(spec: VideoSpec, specDir: string): StructuredErro
     const assetError = checkAssetExists(scene.asset, specDir, scenePath);
     if (assetError) {
       errors.push(assetError);
+    }
+
+    if (scene.caption !== undefined && scene.caption.trim().length === 0) {
+      errors.push({
+        code: "EMPTY_CAPTION",
+        message: `Scene ${index} declares an empty caption; caption text must be non-empty.`,
+        path: `${scenePath}.caption`
+      });
     }
   });
 

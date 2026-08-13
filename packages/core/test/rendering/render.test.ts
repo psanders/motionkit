@@ -10,14 +10,29 @@ import { expect } from "chai";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { loadBrand } from "../../src/brand/registry.js";
 import { render, RenderValidationError } from "../../src/rendering/render.js";
 import { videoSpecSchema } from "../../src/video-spec/schema.js";
-import { FADE_DURATION_IN_FRAMES } from "../../src/rendering/Timeline.js";
 import { FIXTURES_DIR, generateSampleVideo } from "../fixtures/generateSampleVideo.js";
-import { getMeanVolumeDb, getPixelAt, getVideoInfo, hashDecodedContent } from "./mediaProbe.js";
+import {
+  getMeanVolumeDb,
+  getPixelAt,
+  getPixelAtRegion,
+  getVideoInfo,
+  hashDecodedContent
+} from "./mediaProbe.js";
 
 const AUDIBLE_THRESHOLD_DB = -50;
 const BRIGHT_THRESHOLD = 80;
+
+// Transition duration is no longer a fixed frame count (see design.md
+// decision #5) — it resolves from the active brand's
+// `defaultTransitionDurationSeconds` when a scene doesn't specify its own.
+// `FIXTURES_DIR` has no `brands/` folder of its own, so every spec in this
+// suite that omits `brand` implicitly resolves to the built-in `"default"`
+// brand, same as `foundation`'s Phase 1 specs keep doing unchanged.
+const DEFAULT_BRAND_TRANSITION_SECONDS = loadBrand("default", FIXTURES_DIR).brand
+  .defaultTransitionDurationSeconds;
 
 describe("render", function () {
   this.timeout(180_000);
@@ -139,7 +154,7 @@ describe("render", function () {
   });
 
   it("should show a fade rather than a hard cut on a scene declaring transition: fade", async () => {
-    // Arrange — fps=30 so the fixed 15-frame fade window comfortably fits inside a 1s scene
+    // Arrange — fps=30 so the brand-default transition window comfortably fits inside a 1s scene
     const spec = videoSpecSchema.parse({
       version: "1",
       format: "16:9",
@@ -159,11 +174,244 @@ describe("render", function () {
     expect(firstSceneStart).to.be.greaterThan(BRIGHT_THRESHOLD);
 
     // Assert — the fading-in second scene starts dark and ramps up to full brightness
-    const fadeWindowSeconds = FADE_DURATION_IN_FRAMES / spec.fps;
+    const fadeWindowSeconds = DEFAULT_BRAND_TRANSITION_SECONDS;
     const [, atFadeStart] = getPixelAt(outputPath, 1.0 + fadeWindowSeconds * 0.1);
     const [, atFadeEnd] = getPixelAt(outputPath, 1.0 + fadeWindowSeconds * 0.95);
     expect(atFadeStart).to.be.lessThan(atFadeEnd);
     expect(atFadeEnd).to.be.greaterThan(BRIGHT_THRESHOLD);
+  });
+
+  it("should slide in rather than hard-cut on a scene declaring transition: slide-left", async () => {
+    // Arrange
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 30,
+      scenes: [
+        { type: "a_roll", asset: "red.mp4", duration: 1 },
+        { type: "b_roll", asset: "green.mp4", duration: 1, transition: { type: "slide-left" } }
+      ]
+    });
+    const outputPath = path.join(outDir, "slide-left.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — the sliding-in second scene starts mostly off-frame (dark average) and ramps up to full brightness
+    const windowSeconds = DEFAULT_BRAND_TRANSITION_SECONDS;
+    const [, atStart] = getPixelAt(outputPath, 1.0 + windowSeconds * 0.05);
+    const [, atEnd] = getPixelAt(outputPath, 1.0 + windowSeconds * 0.95);
+    expect(atStart).to.be.lessThan(atEnd);
+    expect(atEnd).to.be.greaterThan(BRIGHT_THRESHOLD);
+  });
+
+  it("should slide in rather than hard-cut on a scene declaring transition: slide-right", async () => {
+    // Arrange
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 30,
+      scenes: [
+        { type: "a_roll", asset: "red.mp4", duration: 1 },
+        { type: "b_roll", asset: "green.mp4", duration: 1, transition: { type: "slide-right" } }
+      ]
+    });
+    const outputPath = path.join(outDir, "slide-right.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert
+    const windowSeconds = DEFAULT_BRAND_TRANSITION_SECONDS;
+    const [, atStart] = getPixelAt(outputPath, 1.0 + windowSeconds * 0.05);
+    const [, atEnd] = getPixelAt(outputPath, 1.0 + windowSeconds * 0.95);
+    expect(atStart).to.be.lessThan(atEnd);
+    expect(atEnd).to.be.greaterThan(BRIGHT_THRESHOLD);
+  });
+
+  it("should zoom in rather than hard-cut on a scene declaring transition: zoom", async () => {
+    // Arrange
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 30,
+      scenes: [
+        { type: "a_roll", asset: "red.mp4", duration: 1 },
+        { type: "b_roll", asset: "green.mp4", duration: 1, transition: { type: "zoom" } }
+      ]
+    });
+    const outputPath = path.join(outDir, "zoom.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — small-scale start leaves a dark margin (dimmer average); full scale by window's end
+    const windowSeconds = DEFAULT_BRAND_TRANSITION_SECONDS;
+    const [, atStart] = getPixelAt(outputPath, 1.0 + windowSeconds * 0.05);
+    const [, atEnd] = getPixelAt(outputPath, 1.0 + windowSeconds * 0.95);
+    expect(atStart).to.be.lessThan(atEnd);
+    expect(atEnd).to.be.greaterThan(BRIGHT_THRESHOLD);
+  });
+
+  it("should honor the active brand's default transition duration when a scene doesn't specify one", async () => {
+    // Arrange — an explicit, non-default duration to prove it's actually being read (not coincidentally matching the brand default)
+    const explicitSeconds = DEFAULT_BRAND_TRANSITION_SECONDS * 3;
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 30,
+      scenes: [
+        { type: "a_roll", asset: "red.mp4", duration: 2 },
+        {
+          type: "b_roll",
+          asset: "green.mp4",
+          duration: 2,
+          transition: { type: "fade", duration: explicitSeconds }
+        }
+      ]
+    });
+    const outputPath = path.join(outDir, "explicit-duration.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — still ramping (not yet fully bright) partway through the longer, explicit window
+    const [, midExplicitWindow] = getPixelAt(outputPath, 2.0 + explicitSeconds * 0.3);
+    const [, endExplicitWindow] = getPixelAt(outputPath, 2.0 + explicitSeconds * 0.95);
+    expect(midExplicitWindow).to.be.lessThan(endExplicitWindow);
+    expect(endExplicitWindow).to.be.greaterThan(BRIGHT_THRESHOLD);
+  });
+
+  it("should show a caption overlay during its scene, visibly distinct from no caption", async () => {
+    // Arrange
+    const noCaptionSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }]
+    });
+    const captionSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1, caption: "Hello, MotionKit" }]
+    });
+    const noCaptionPath = path.join(outDir, "no-caption.mp4");
+    const captionPath = path.join(outDir, "caption.mp4");
+
+    // Act
+    await render(noCaptionSpec, FIXTURES_DIR, noCaptionPath);
+    await render(captionSpec, FIXTURES_DIR, captionPath);
+
+    // Assert — the caption's background band changes the composited frame's average color
+    const withoutCaption = getPixelAt(noCaptionPath, 0.5);
+    const withCaption = getPixelAt(captionPath, 0.5);
+    expect(withCaption).to.not.deep.equal(withoutCaption);
+  });
+
+  it("should wrap a scene's visual content in a browser frame when frame: 'browser' is declared", async () => {
+    // Arrange — the same scene, once bare and once wrapped in a browser frame
+    const bareSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }]
+    });
+    const framedSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1, frame: "browser" }]
+    });
+    const barePath = path.join(outDir, "bare.mp4");
+    const framedPath = path.join(outDir, "frame.mp4");
+
+    // Act
+    await render(bareSpec, FIXTURES_DIR, barePath);
+    await render(framedSpec, FIXTURES_DIR, framedPath);
+
+    // Assert — the browser frame's padding and chrome bar mean the scene no
+    // longer fills the composition edge-to-edge, so the whole-frame average
+    // color differs measurably from the bare (edge-to-edge) rendering
+    const info = getVideoInfo(framedPath);
+    expect(info.width).to.equal(1920);
+    expect(info.height).to.equal(1080);
+    const barePixel = getPixelAt(barePath, 0.5);
+    const framedPixel = getPixelAt(framedPath, 0.5);
+    expect(framedPixel).to.not.deep.equal(barePixel);
+
+    // Assert — the top strip (padding + chrome bar) is no longer solid red in the framed rendering
+    const topStrip = { x: 800, y: 20, width: 320, height: 20 };
+    const bareTopStrip = getPixelAtRegion(barePath, 0.5, topStrip);
+    const framedTopStrip = getPixelAtRegion(framedPath, 0.5, topStrip);
+    expect(framedTopStrip).to.not.deep.equal(bareTopStrip);
+  });
+
+  it("should render the brand's logo at its default placement when logo: true is declared, distinct from no logo", async () => {
+    // Arrange
+    const noLogoSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }]
+    });
+    const logoSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1, logo: true }]
+    });
+    const noLogoPath = path.join(outDir, "no-logo.mp4");
+    const logoPath = path.join(outDir, "logo-default.mp4");
+
+    // Act
+    await render(noLogoSpec, FIXTURES_DIR, noLogoPath);
+    await render(logoSpec, FIXTURES_DIR, logoPath);
+
+    // Assert — the default brand places the logo bottom_right; a crop of that
+    // corner region shows the overlay's presence even though the whole-frame
+    // average (dominated by the much larger solid-color background) doesn't
+    const bottomRightCorner = { x: 1920 - 240, y: 1080 - 240, width: 240, height: 240 };
+    const withoutLogo = getPixelAtRegion(noLogoPath, 0.5, bottomRightCorner);
+    const withLogo = getPixelAtRegion(logoPath, 0.5, bottomRightCorner);
+    expect(withLogo).to.not.deep.equal(withoutLogo);
+  });
+
+  it("should render the brand's logo at an overridden placement, distinct from the default placement", async () => {
+    // Arrange
+    const defaultPlacementSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1, logo: true }]
+    });
+    const overriddenPlacementSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1, logo: { position: "top_left" } }]
+    });
+    const defaultPath = path.join(outDir, "logo-default-2.mp4");
+    const overriddenPath = path.join(outDir, "logo-override.mp4");
+
+    // Act
+    await render(defaultPlacementSpec, FIXTURES_DIR, defaultPath);
+    await render(overriddenPlacementSpec, FIXTURES_DIR, overriddenPath);
+
+    // Assert — the default brand's logo placement (bottom_right) differs from
+    // the override (top_left): the top-left corner only shows the logo in
+    // the overridden render, and the bottom-right corner only shows it in
+    // the default-placement render
+    const topLeftCorner = { x: 0, y: 0, width: 240, height: 240 };
+    const bottomRightCorner = { x: 1920 - 240, y: 1080 - 240, width: 240, height: 240 };
+
+    const defaultTopLeft = getPixelAtRegion(defaultPath, 0.5, topLeftCorner);
+    const overriddenTopLeft = getPixelAtRegion(overriddenPath, 0.5, topLeftCorner);
+    expect(overriddenTopLeft).to.not.deep.equal(defaultTopLeft);
+
+    const defaultBottomRight = getPixelAtRegion(defaultPath, 0.5, bottomRightCorner);
+    const overriddenBottomRight = getPixelAtRegion(overriddenPath, 0.5, bottomRightCorner);
+    expect(defaultBottomRight).to.not.deep.equal(overriddenBottomRight);
   });
 
   it("should render 16:9 at 1920x1080", async () => {

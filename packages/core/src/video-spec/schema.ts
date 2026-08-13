@@ -7,6 +7,7 @@
  * creative/AI layer and the MotionKit rendering engine.
  */
 import { z } from "zod/v4";
+import { placementSchema } from "../brand/schema.js";
 
 /** The output formats supported by MotionKit in this phase. */
 export const videoFormatSchema = z.enum(["16:9", "9:16"], {
@@ -15,8 +16,26 @@ export const videoFormatSchema = z.enum(["16:9", "9:16"], {
 
 /** The transition types supported by MotionKit in this phase. */
 export const transitionSchema = z.object({
-  type: z.enum(["fade"], { error: "Transition type must be one of: fade" })
+  type: z.enum(["fade", "slide-left", "slide-right", "zoom"], {
+    error: "Transition type must be one of: fade, slide-left, slide-right, zoom"
+  }),
+  /**
+   * Duration in seconds. Optional — when omitted, the active brand's
+   * `defaultTransitionDurationSeconds` applies instead (see design.md
+   * decision #5). Not constrained to positive here for the same reason
+   * `duration` below isn't: that's a semantic rule for `validate()`, not a
+   * structural one.
+   */
+  duration: z.number().optional()
 });
+
+/** The static, decorative frame a scene can be wrapped in. Only one value today — a literal, not yet an enum, so it's cheap to extend later. */
+export const sceneFrameSchema = z.literal("browser", {
+  error: 'Frame must be: "browser"'
+});
+
+/** A scene's optional logo overlay: either `true` (use the active brand's default placement) or an explicit position override. */
+export const sceneLogoSchema = z.union([z.literal(true), z.object({ position: placementSchema })]);
 
 /** Fields shared by every scene type. */
 const sceneBaseSchema = {
@@ -30,7 +49,18 @@ const sceneBaseSchema = {
    * at the structural stage.
    */
   duration: z.number(),
-  transition: transitionSchema.optional()
+  transition: transitionSchema.optional(),
+  /**
+   * Text overlaid for this scene's duration, styled per the active brand's
+   * caption tokens. Structurally just a string (including empty) — an
+   * empty caption is a semantic rule enforced by `validate()`, not a
+   * structural one, for the same reason `duration` isn't constrained above.
+   */
+  caption: z.string().optional(),
+  /** A static, decorative wrapper around this scene's visual content. */
+  frame: sceneFrameSchema.optional(),
+  /** Overlays the active brand's logo on this scene. */
+  logo: sceneLogoSchema.optional()
 };
 
 /** An A-roll scene: primary footage carrying its own audio. */
@@ -63,6 +93,14 @@ export const videoSpecSchema = z
     version: videoSpecVersionSchema,
     format: videoFormatSchema,
     fps: z.number().positive("fps must be a positive number"),
+    /**
+     * The brand id this specification renders against, resolved via
+     * `../brand/registry.ts`'s `findBrand`/`loadBrand`. Defaults to
+     * `"default"` — MotionKit's one built-in brand — when omitted, so
+     * every Phase 1 specification (which predates the brand system)
+     * keeps working unchanged.
+     */
+    brand: z.string().min(1).default("default"),
     scenes: z.array(sceneSchema).min(1, "At least one scene is required")
   })
   .check((ctx) => {

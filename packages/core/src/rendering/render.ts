@@ -11,9 +11,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
+import { loadBrand } from "../brand/registry.js";
 import { validate } from "../validation/validate.js";
 import type { StructuredError } from "../validation/errors.js";
 import type { VideoSpec } from "../video-spec/types.js";
+import { resolveBrandAssets } from "./resolveBrandAssets.js";
 
 // The bundler needs the entry's actual file: `.tsx` when running against
 // `src/` directly (as the test suite does, via `tsx`), `.js` once this
@@ -92,8 +94,13 @@ export async function render(spec: VideoSpec, specDir: string, outputPath: strin
     throw new RenderValidationError(validation.errors);
   }
 
+  // `validate()` above already confirmed `spec.brand` resolves, so
+  // `loadBrand` (the throwing counterpart to `findBrand`) is safe here.
+  const { brand, brandDir } = loadBrand(spec.brand, specDir);
+  const resolvedBrand = resolveBrandAssets(brand, brandDir);
+
   const serveUrl = await getBundleUrl(specDir);
-  const inputProps = { spec };
+  const inputProps = { spec, brand: resolvedBrand };
 
   const composition = await selectComposition({
     serveUrl,

@@ -13,8 +13,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && npm run copy:brand-assets",
     "build:watch": "tsc -b --watch",
+    "copy:brand-assets": "mkdir -p dist/brand/brands && cp -R src/brand/brands/. dist/brand/brands/",
     "lint": "eslint .",
     "test": "mocha"
   },

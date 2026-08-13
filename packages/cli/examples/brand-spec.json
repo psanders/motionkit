@@ -1,0 +1,37 @@
+{
+  "version": "1",
+  "format": "16:9",
+  "fps": 30,
+  "brand": "acme",
+  "scenes": [
+    {
+      "type": "a_roll",
+      "asset": "assets/interview.mp4",
+      "duration": 3,
+      "caption": "Welcome to Acme",
+      "logo": true
+    },
+    {
+      "type": "b_roll",
+      "asset": "assets/broll-1.mp4",
+      "duration": 2,
+      "frame": "browser",
+      "transition": { "type": "slide-left" }
+    },
+    {
+      "type": "b_roll",
+      "asset": "assets/broll-2.mp4",
+      "duration": 2,
+      "audio": "muted",
+      "caption": "Now in 4K",
+      "transition": { "type": "zoom" }
+    },
+    {
+      "type": "a_roll",
+      "asset": "assets/interview-2.mp4",
+      "duration": 3,
+      "logo": { "position": "top_left" },
+      "transition": { "type": "slide-right" }
+    }
+  ]
+}

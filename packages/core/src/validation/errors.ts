@@ -13,7 +13,11 @@ export type StructuredErrorCode =
   | "ASSET_NOT_FOUND"
   | "INVALID_DURATION"
   | "UNSUPPORTED_FORMAT"
-  | "UNSUPPORTED_TRANSITION";
+  | "UNSUPPORTED_TRANSITION"
+  | "BRAND_NOT_FOUND"
+  | "EMPTY_CAPTION"
+  | "UNSUPPORTED_FRAME"
+  | "UNSUPPORTED_LOGO_POSITION";
 
 /** One rule violation, with an optional path into the document and optional correction hints. */
 export interface StructuredError {

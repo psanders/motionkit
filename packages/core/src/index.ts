@@ -12,3 +12,4 @@ export * from "./logger.js";
 export * from "./video-spec/index.js";
 export * from "./validation/index.js";
 export * from "./rendering/index.js";
+export * from "./brand/index.js";

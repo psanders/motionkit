@@ -4,3 +4,4 @@
 export * from "./render.js";
 export * from "./audioSpans.js";
 export * from "./Timeline.js";
+export * from "./resolveBrandAssets.js";

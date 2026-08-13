@@ -196,4 +196,191 @@ describe("videoSpecSchema", () => {
     // Assert
     expect(result.success).to.equal(false);
   });
+
+  it("should accept an explicit brand id", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(baseSpec({ brand: "acme" }));
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      expect(result.data.brand).to.equal("acme");
+    }
+  });
+
+  it("should default an omitted brand to 'default'", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(baseSpec());
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      expect(result.data.brand).to.equal("default");
+    }
+  });
+
+  it("should accept a scene caption", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({ scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, caption: "Hello" }] })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should accept a scene with no caption", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({ scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5 }] })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      expect(result.data.scenes[0]?.caption).to.equal(undefined);
+    }
+  });
+
+  it("should accept a browser frame", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, frame: "browser" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should reject an unrecognized frame value", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, frame: "polaroid" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(false);
+  });
+
+  it("should accept a logo overlay with the brand's default placement", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({ scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, logo: true }] })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should accept a logo overlay with an overridden placement", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          {
+            type: "a_roll",
+            asset: "clip.mp4",
+            duration: 5,
+            logo: { position: "top_left" }
+          }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      const scene = result.data.scenes[0];
+      expect(scene?.logo).to.deep.equal({ position: "top_left" });
+    }
+  });
+
+  it("should reject a logo overlay with an unsupported placement", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [{ type: "a_roll", asset: "clip.mp4", duration: 5, logo: { position: "middle" } }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(false);
+  });
+
+  for (const type of ["fade", "slide-left", "slide-right", "zoom"] as const) {
+    it(`should accept the '${type}' transition on a non-first scene`, () => {
+      // Act
+      const result = videoSpecSchema.safeParse(
+        baseSpec({
+          scenes: [
+            { type: "a_roll", asset: "a.mp4", duration: 5 },
+            { type: "b_roll", asset: "b.mp4", duration: 3, transition: { type } }
+          ]
+        })
+      );
+
+      // Assert
+      expect(result.success).to.equal(true);
+    });
+  }
+
+  it("should still reject an unrecognized transition type", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          { type: "a_roll", asset: "a.mp4", duration: 5 },
+          { type: "b_roll", asset: "b.mp4", duration: 3, transition: { type: "wipe" } }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(false);
+  });
+
+  it("should accept a transition without an explicit duration", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          { type: "a_roll", asset: "a.mp4", duration: 5 },
+          { type: "b_roll", asset: "b.mp4", duration: 3, transition: { type: "fade" } }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success && result.data.scenes[1]?.transition) {
+      expect(result.data.scenes[1].transition.duration).to.equal(undefined);
+    }
+  });
+
+  it("should accept a transition with an explicit duration", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        scenes: [
+          { type: "a_roll", asset: "a.mp4", duration: 5 },
+          {
+            type: "b_roll",
+            asset: "b.mp4",
+            duration: 3,
+            transition: { type: "fade", duration: 1.2 }
+          }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success && result.data.scenes[1]?.transition) {
+      expect(result.data.scenes[1].transition.duration).to.equal(1.2);
+    }
+  });
 });

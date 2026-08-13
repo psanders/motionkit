@@ -8,18 +8,22 @@ The video engine ships in phases via OpenSpec changes (see `CLAUDE.md` for the b
 `openspec/` for specs/proposals). Phase 1 (Foundation) is in: a versioned Video Specification
 schema, a non-throwing structured-error validator, and a deterministic Remotion render pipeline
 for the `16:9`/`9:16` formats, with `motionkit validate`/`motionkit render` CLI commands driving
-them.
+them. Phase 2 (Brand System) adds a Brand system — a design-token document (colors, typography,
+logo, spacing, shadows, and per-primitive style presets) referenced by id and never inlined into
+a Video Specification — plus scene-level `caption`, `frame`, and `logo` fields, and three new
+transitions (`slide-left`, `slide-right`, `zoom`) alongside the existing `fade`.
 
 ## Packages
 
 - `packages/core` (`@motionkit/core`) — shared Zod schemas, types, error classes, utils, and the
-  MotionKit engine: the Video Specification schema (`src/video-spec/`), its validator
-  (`src/validation/`), and the Remotion render pipeline (`src/rendering/`).
+  MotionKit engine: the Brand schema and registry (`src/brand/`), the Video Specification schema
+  (`src/video-spec/`), its validator (`src/validation/`), and the Remotion render pipeline
+  (`src/rendering/`).
 - `packages/mcp` (`@motionkit/mcp`) — the MCP server AI agents talk to (still a placeholder
   `ping` tool — the real tool surface is Phase 4).
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI for local/scripted use: `motionkit validate
-<spec.json>` and `motionkit render <spec.json>`. See `packages/cli/examples/` for a runnable
-  example.
+<spec.json>` and `motionkit render <spec.json>`. See `packages/cli/examples/` for runnable
+  examples, including a brand/caption/frame/logo/transition-demonstrating spec.
 
 ## Requirements
 

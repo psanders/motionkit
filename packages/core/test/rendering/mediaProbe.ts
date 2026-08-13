@@ -75,6 +75,39 @@ export function getPixelAt(filePath: string, timeSeconds: number): [number, numb
   return [buffer[0] ?? 0, buffer[1] ?? 0, buffer[2] ?? 0];
 }
 
+/**
+ * Reads the average RGB color of a cropped sub-region of the frame at
+ * `timeSeconds`. Small overlays (e.g. a corner logo) don't move a
+ * whole-frame average (`getPixelAt`) enough to be reliably distinguishable,
+ * so tests that need to detect one crop down to the region it actually
+ * occupies first.
+ */
+export function getPixelAtRegion(
+  filePath: string,
+  timeSeconds: number,
+  region: { x: number; y: number; width: number; height: number }
+): [number, number, number] {
+  const buffer = execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    "-ss",
+    String(timeSeconds),
+    "-i",
+    filePath,
+    "-vframes",
+    "1",
+    "-vf",
+    `crop=${region.width}:${region.height}:${region.x}:${region.y},scale=1:1`,
+    "-f",
+    "rawvideo",
+    "-pix_fmt",
+    "rgb24",
+    "pipe:1"
+  ]);
+
+  return [buffer[0] ?? 0, buffer[1] ?? 0, buffer[2] ?? 0];
+}
+
 /** Reads the mean volume (in dB; more negative = quieter, silence approaches -91dB) of a segment. */
 export function getMeanVolumeDb(
   filePath: string,

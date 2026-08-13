@@ -23,13 +23,26 @@ Monorepo (npm workspaces + Lerna), three packages:
 - `packages/core` (`@motionkit/core`) — the shared package: Zod schemas, inferred types, error
   classes, pure utils, the validated-function spine (`withErrorHandlingAndValidation.ts` +
   `ValidationError.ts`), and the MotionKit engine itself:
+  - `src/brand/` — the Brand schema (`brandSchema`: colors, typography, logo, spacing,
+    border-radius, shadows, and per-primitive style tokens), and a registry (`findBrand`,
+    non-throwing; `loadBrand`, throwing) that resolves a brand id to its parsed, validated
+    document. A brand lives in its own `<id>.brand.json` file, checked at `<specDir>/brands/`
+    first, then falling back to the package's built-in `src/brand/brands/` (ships one brand,
+    `"default"`) — never inlined into a Video Specification. A logo's `asset` path resolves
+    relative to the brand file's own directory, not the spec's.
   - `src/video-spec/` — the versioned Video Specification schema (`videoSpecSchema`), `a_roll`/
-    `b_roll` scenes, and the `fade` transition.
+    `b_roll` scenes, an optional top-level `brand` id (defaults to `"default"`), and optional
+    scene-level `caption`, `frame` (`"browser"`), and `logo` fields. Transitions support `fade`,
+    `slide-left`, `slide-right`, and `zoom`, each with an optional explicit `duration` —
+    when omitted, the active brand's `defaultTransitionDurationSeconds` applies at render time.
   - `src/validation/` — `validate(spec, specDir)`, a non-throwing, multi-error validator
-    (`ValidationResult`/`StructuredError`) for structural and semantic spec problems.
+    (`ValidationResult`/`StructuredError`) for structural and semantic spec problems, including
+    brand resolution (`BRAND_NOT_FOUND`, with available brand ids as suggestions) and the new
+    scene fields (`EMPTY_CAPTION`, `UNSUPPORTED_FRAME`, `UNSUPPORTED_LOGO_POSITION`).
   - `src/rendering/` — the Remotion composition (`Timeline.tsx`) and `render(spec, specDir,
 outputPath)`, a deterministic Video Specification → MP4 pipeline for the `16:9`/`9:16`
-    formats.
+    formats. Captions, the browser-chrome frame, and the logo render as additive layers within
+    a scene's existing `<Sequence>` (not new scene types), all styled from the resolved brand.
 
   Depends on no other workspace package. `mcp` and `cli` both depend on it.
 
@@ -39,7 +52,8 @@ outputPath)`, a deterministic Video Specification → MP4 pipeline for the `16:9
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI (`@oclif/core`, `@inquirer/prompts`) for local/
   scripted use. Exposes `motionkit validate <spec.json>` and `motionkit render <spec.json>`
   (both thin wrappers over `@motionkit/core`), plus the original `motionkit ping` health check.
-  See `packages/cli/examples/` for a runnable example spec.
+  See `packages/cli/examples/` for runnable example specs (Phase 1's `spec.json`, and Phase 2's
+  brand/caption/frame/logo/transition-demonstrating `brand-spec.json`).
 
 No database — MotionKit has no persistence layer of its own; asset/spec state is either passed
 through the MCP session or handled by the calling agent.

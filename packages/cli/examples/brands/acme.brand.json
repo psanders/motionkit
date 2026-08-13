@@ -1,0 +1,65 @@
+{
+  "colors": {
+    "primary": "#F97316",
+    "secondary": "#111827",
+    "background": "#1F2937",
+    "text": "#F9FAFB",
+    "accent": "#FACC15"
+  },
+  "typography": {
+    "fontFamily": "Georgia, serif",
+    "sizes": {
+      "title": 80,
+      "subtitle": 44,
+      "caption": 34,
+      "cta": 38
+    }
+  },
+  "logo": {
+    "asset": "acme-logo.svg",
+    "defaultPosition": "bottom_right"
+  },
+  "spacing": {
+    "sm": 10,
+    "md": 20,
+    "lg": 40
+  },
+  "borderRadius": {
+    "sm": 6,
+    "md": 12,
+    "lg": 24
+  },
+  "shadows": {
+    "sm": "0 1px 3px rgba(0, 0, 0, 0.4)",
+    "md": "0 6px 12px rgba(0, 0, 0, 0.45)",
+    "lg": "0 16px 32px rgba(0, 0, 0, 0.5)"
+  },
+  "captionStyle": {
+    "fontSize": 34,
+    "color": "#F9FAFB",
+    "backgroundColor": "rgba(17, 24, 39, 0.8)"
+  },
+  "titleStyle": {
+    "fontSize": 80,
+    "color": "#F9FAFB",
+    "fontWeight": "800"
+  },
+  "lowerThirdStyle": {
+    "backgroundColor": "#111827",
+    "textColor": "#F9FAFB",
+    "fontSize": 38
+  },
+  "browserFrameStyle": {
+    "chromeColor": "#111827",
+    "chromeHeightPx": 44,
+    "borderRadius": 16,
+    "shadow": "0 16px 32px rgba(0, 0, 0, 0.5)"
+  },
+  "ctaStyle": {
+    "backgroundColor": "#F97316",
+    "textColor": "#111827",
+    "fontSize": 38,
+    "borderRadius": 12
+  },
+  "defaultTransitionDurationSeconds": 0.6
+}
