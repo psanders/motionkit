@@ -28,11 +28,12 @@ closing out Phase 3. Phase 4 (MCP tool surface) is next.
   (`src/rendering/`).
 - `packages/mcp` (`@motionkit/mcp`) — the MCP server AI agents talk to (still a placeholder
   `ping` tool — the real tool surface is Phase 4).
-- `packages/cli` (`@motionkit/cli`) — an oclif CLI for local/scripted use: `motionkit validate
-<spec.json>` and `motionkit render <spec.json>`. See `packages/cli/examples/` for runnable
-  examples: a Phase 1 spec, a brand/caption/frame/logo/transition-demonstrating Phase 2 spec, a
-  motion/phone-frame/`1:1`-demonstrating Phase 3a spec, and an overlays/PIP-demonstrating
-  Phase 3b spec.
+- `packages/cli` (`@motionkit/cli`) — an oclif CLI, installable globally from this checkout
+  (`npm install -g ./packages/cli`) as the `motionkit` command: `motionkit validate <spec.json>`,
+  `motionkit render <spec.json>`, and `motionkit config` to register `@motionkit/mcp` with an
+  MCP-aware client. See `packages/cli/examples/` for runnable examples: a Phase 1 spec, a
+  brand/caption/frame/logo/transition-demonstrating Phase 2 spec, a motion/phone-frame/
+  `1:1`-demonstrating Phase 3a spec, and an overlays/PIP-demonstrating Phase 3b spec.
 
 ## Requirements
 
@@ -244,47 +245,53 @@ those examples reference via `ffmpeg`.
 ## Using the CLI
 
 `packages/cli` (`@motionkit/cli`) is an [oclif](https://oclif.io) CLI wrapping
-`@motionkit/core`'s `validate()` and `render()`. It isn't published to npm — there's no
-`publishConfig` or registry story for it yet — so it's used locally, straight out of this
-monorepo, the same way the repo's own examples and demos use it.
+`@motionkit/core`'s `validate()`/`render()` and the MCP client-registration helper below.
 
-### Install and build
+### Install
 
 ```bash
-npm install        # from the repo root — workspaces link @motionkit/cli -> @motionkit/core
-npm run build       # tsc -b across all workspaces' project references, incl. packages/cli
+npm install
+npm run build
+npm install -g ./packages/cli
 ```
 
-`npm run build` compiles `packages/cli/src` to `packages/cli/dist`, which is what
-`packages/cli/bin/run.js` (the package's `bin.motionkit` entry point) actually executes.
+`npm install -g ./packages/cli` gives you a `motionkit` command on your `PATH` — install from the
+local path (with the leading `./`; a bare `packages/cli` is read as a GitHub shorthand and
+fails), not by package name, since `@motionkit/cli` isn't published to the npm registry yet. Run
+from the repo root inside this checkout, npm resolves the workspace-linked `@motionkit/core`
+dependency automatically and symlinks the global `motionkit` binary straight back to
+`packages/cli` — so it always runs whatever's currently built there. Rerun `npm run build` after
+pulling changes to pick them up; no need to reinstall.
 
-### Invoke it
+```bash
+motionkit ping
+```
 
-There's no global `motionkit` on your `PATH` unless you `npm link` the package yourself. The
-pattern used throughout this repo's own docs and demos is to invoke the built entry point with
-`node` directly:
+If you'd rather not install globally, every command also runs via its built entry point directly:
 
 ```bash
 node packages/cli/bin/run.js <command> [args] [flags]
 ```
 
-(or, from inside `packages/cli`, `node bin/run.js <command> ...` — see
-`packages/cli/examples/README.md` and `demos/fonoster-intro/README.md` for exactly this pattern
-in context.)
+(this is the pattern `packages/cli/examples/README.md` and `demos/fonoster-intro/README.md` use,
+so their commands keep working without a global install.) The rest of this section uses the
+global `motionkit` form; substitute either invocation freely.
 
-Three commands exist today (`packages/cli/src/commands/`):
+### Commands
+
+Four commands exist today (`packages/cli/src/commands/`):
 
 - **`motionkit ping`** — health check; confirms the CLI wires up to `@motionkit/core`. No args.
 
   ```bash
-  node packages/cli/bin/run.js ping
+  motionkit ping
   ```
 
 - **`motionkit validate <spec>`** — reads a Video Specification JSON file, runs `@motionkit/core`'s
   `validate()`, and reports structured errors. Exits `0` on success, `1` on failure (scriptable).
 
   ```bash
-  node packages/cli/bin/run.js validate path/to/spec.json
+  motionkit validate path/to/spec.json
   ```
 
 - **`motionkit render <spec>`** — validates first (so an invalid spec is never rendered, using
@@ -292,23 +299,41 @@ Three commands exist today (`packages/cli/src/commands/`):
   via `@motionkit/core`'s `render()`.
 
   ```bash
-  node packages/cli/bin/run.js render path/to/spec.json
-  node packages/cli/bin/run.js render path/to/spec.json --output out.mp4
-  node packages/cli/bin/run.js render path/to/spec.json -o out.mp4
+  motionkit render path/to/spec.json
+  motionkit render path/to/spec.json --output out.mp4
+  motionkit render path/to/spec.json -o out.mp4
   ```
 
   The `--output`/`-o` flag is optional — when omitted, the output MP4 is written alongside the
   spec file, same base name, `.mp4` extension (e.g. `path/to/spec.mp4`).
 
+- **`motionkit config`** — registers the built `@motionkit/mcp` server with an MCP-aware client's
+  config file, so the client can launch MotionKit's MCP tools without hand-editing JSON.
+
+  ```bash
+  motionkit config
+  motionkit config --client claude
+  motionkit config --path /custom/config/location.json
+  ```
+
+  `--client` defaults to `claude` (Claude Desktop) — the only client supported this phase, though
+  the flag exists so more clients can be added later without a breaking CLI change. It resolves
+  Claude Desktop's config file per OS (`~/Library/Application Support/Claude/
+claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows,
+  `~/.config/Claude/claude_desktop_config.json` elsewhere — override with `--path`), merges in an
+  `mcpServers.motionkit` entry that launches `packages/mcp/dist/index.js` via `node`, and leaves
+  every other key and every other registered server in that file untouched. It refuses to run
+  (with a pointer to `npm run build`) if `packages/mcp` hasn't been built yet.
+
 Being an oclif CLI, every command supports `--help`:
 
 ```bash
-node packages/cli/bin/run.js render --help
+motionkit render --help
 ```
 
 During active development on the CLI package itself, `packages/cli`'s own `npm run dev` runs the
 unbuilt TypeScript directly via `tsx` (watching `src/` and re-executing `bin/dev.js`) — useful
-when iterating on the CLI's source, not needed for ordinary spec validate/render usage.
+when iterating on the CLI's source, not needed for ordinary day-to-day usage.
 
 ## Workflow tooling
 
