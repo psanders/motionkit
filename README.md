@@ -15,7 +15,10 @@ transitions (`slide-left`, `slide-right`, `zoom`) alongside the existing `fade`.
 (Responsive Motion) adds a scene-level `motion` field (`horizontal_pan`/`vertical_pan`/`zoom`/
 `static`, with an optional focal point) that drives real crop/pan/zoom render math based on each
 source asset's actual dimensions, a `frame: "phone"` chrome decoration alongside `"browser"`,
-and the `1:1` format.
+and the `1:1` format. Phase 3b (Overlays / PIP) adds a scene-anchored `overlays` array — a video
+bubble (`pip`) rendered on top of its target scene, with a required `audio: "own" | "muted"` mode
+covering the common "no separate A-roll, just a narrating webcam bubble over B-roll" pattern —
+closing out Phase 3.
 
 ## Packages
 
@@ -27,8 +30,9 @@ and the `1:1` format.
   `ping` tool — the real tool surface is Phase 4).
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI for local/scripted use: `motionkit validate
 <spec.json>` and `motionkit render <spec.json>`. See `packages/cli/examples/` for runnable
-  examples: a Phase 1 spec, a brand/caption/frame/logo/transition-demonstrating Phase 2 spec, and
-  a motion/phone-frame/`1:1`-demonstrating Phase 3a spec.
+  examples: a Phase 1 spec, a brand/caption/frame/logo/transition-demonstrating Phase 2 spec, a
+  motion/phone-frame/`1:1`-demonstrating Phase 3a spec, and an overlays/PIP-demonstrating
+  Phase 3b spec.
 
 ## Requirements
 

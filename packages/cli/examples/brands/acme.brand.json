@@ -61,6 +61,17 @@
     "borderRadius": 36,
     "shadow": "0 16px 32px rgba(0, 0, 0, 0.5)"
   },
+  "pipStyle": {
+    "size": {
+      "sm": 150,
+      "md": 230,
+      "lg": 330
+    },
+    "borderWidth": 5,
+    "borderColor": "#F97316",
+    "shadow": "0 16px 32px rgba(0, 0, 0, 0.5)",
+    "defaultPosition": "bottom_left"
+  },
   "ctaStyle": {
     "backgroundColor": "#F97316",
     "textColor": "#111827",

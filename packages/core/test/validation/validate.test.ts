@@ -495,4 +495,106 @@ describe("validate", () => {
     // Assert
     expect(result.valid).to.equal(true);
   });
+
+  it("should reject an overlay with a negative sceneIndex", () => {
+    // Arrange
+    const spec = validSpec({
+      overlays: [{ type: "pip", sceneIndex: -1, asset: "a.mp4", audio: "muted" }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const error = result.errors.find((e) => e.code === "OVERLAY_SCENE_INDEX_OUT_OF_RANGE");
+      expect(error).to.not.equal(undefined);
+      expect(error?.path).to.equal("overlays.0.sceneIndex");
+    }
+  });
+
+  it("should reject an overlay whose sceneIndex is beyond the last scene", () => {
+    // Arrange — validSpec() has exactly one scene (index 0)
+    const spec = validSpec({
+      overlays: [{ type: "pip", sceneIndex: 1, asset: "a.mp4", audio: "muted" }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const error = result.errors.find((e) => e.code === "OVERLAY_SCENE_INDEX_OUT_OF_RANGE");
+      expect(error).to.not.equal(undefined);
+    }
+  });
+
+  it("should accept an overlay with an in-range sceneIndex", () => {
+    // Arrange
+    const spec = validSpec({
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "a.mp4", audio: "muted" }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(true);
+  });
+
+  it("should report a missing overlay asset, with suggestions", () => {
+    // Arrange
+    const spec = validSpec({
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "missing-webcam.mp4", audio: "muted" }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const error = result.errors.find((e) => e.code === "ASSET_NOT_FOUND");
+      expect(error).to.not.equal(undefined);
+      expect(error?.path).to.equal("overlays.0.asset");
+      expect(error?.suggestions).to.include("a.mp4");
+    }
+  });
+
+  it("should reject an overlay with an unsupported position", () => {
+    // Arrange
+    const spec = validSpec({
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "a.mp4", audio: "muted", position: "middle" }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const error = result.errors.find((e) => e.code === "UNSUPPORTED_OVERLAY_POSITION");
+      expect(error).to.not.equal(undefined);
+      expect(error?.message).to.include("top_left");
+    }
+  });
+
+  it("should report multiple violations on a single overlay together", () => {
+    // Arrange — bad sceneIndex AND missing asset on the same overlay
+    const spec = validSpec({
+      overlays: [{ type: "pip", sceneIndex: 5, asset: "missing.mp4", audio: "muted" }]
+    } as unknown as Partial<VideoSpec>);
+
+    // Act
+    const result = validate(spec, specDir);
+
+    // Assert
+    expect(result.valid).to.equal(false);
+    if (!result.valid) {
+      const codes = result.errors.map((e) => e.code).sort();
+      expect(codes).to.deep.equal(["ASSET_NOT_FOUND", "OVERLAY_SCENE_INDEX_OUT_OF_RANGE"]);
+    }
+  });
 });

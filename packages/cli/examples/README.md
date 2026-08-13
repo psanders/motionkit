@@ -1,6 +1,6 @@
 # Example Video Specifications
 
-Three small specs for manually smoke-testing `motionkit validate`/`motionkit render` against real
+Four small specs for manually smoke-testing `motionkit validate`/`motionkit render` against real
 (synthetic) assets, without an MCP client attached.
 
 ```bash
@@ -14,6 +14,9 @@ node ../bin/run.js render brand-spec.json     # writes brand-spec.mp4 alongside 
 
 node ../bin/run.js validate motion-spec.json
 node ../bin/run.js render motion-spec.json    # writes motion-spec.mp4 alongside motion-spec.json
+
+node ../bin/run.js validate overlays-spec.json
+node ../bin/run.js render overlays-spec.json  # writes overlays-spec.mp4 alongside overlays-spec.json
 ```
 
 ## `spec.json` — Phase 1 (Foundation)
@@ -45,3 +48,15 @@ against the `acme` brand from `brand-spec.json`'s example. Every source asset he
 640x360 landscape footage `generate-assets.sh` already produces; the crop/pan/zoom math computes
 real slack to move across regardless of target format, using each asset's actual probed
 dimensions (see `probeAssetDimensions.ts`), not just the target composition's.
+
+## `overlays-spec.json` — Phase 3b (Overlays / PIP)
+
+Exercises the `overlays-pip` capability — the ScreenStudio-style webcam-bubble pattern. Scene 0
+is a `b_roll` with no preceding `a_roll` at all — its own audio-continuity chain produces
+silence — paired with an `overlays[]` entry (`type: "pip"`, `audio: "own"`) whose own asset
+audio drives the narration for that scene, at the `acme` brand's default PIP placement/shape/
+size. Scene 1 is a plain full-screen `a_roll` (no overlay) — the "cut to fullscreen" pattern
+discussed and confirmed sufficient in place of an animated bubble-to-fullscreen morph. Scene 2
+has a second PIP overlay with every override exercised at once: `position: "top_right"`,
+`shape: "rounded_square"`, `size: "lg"`, and `audio: "muted"` (silent, so it doesn't compete with
+whatever audio the scene's own chain would otherwise produce).

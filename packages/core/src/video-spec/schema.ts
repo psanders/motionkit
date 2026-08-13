@@ -150,6 +150,47 @@ export const bRollSceneSchema = z.object({
 /** A scene is either A-roll or B-roll, discriminated on `type`. */
 export const sceneSchema = z.discriminatedUnion("type", [aRollSceneSchema, bRollSceneSchema]);
 
+/** Whether a PIP overlay's own asset audio plays, or the overlay contributes no audio. Extends the same vocabulary `bRollAudioSchema` uses (`"continue"`/`"muted"`), with `"own"` replacing `"continue"` since an overlay has no "preceding A-roll" to continue from. */
+export const pipAudioSchema = z.enum(["own", "muted"], {
+  error: "audio must be one of: own, muted"
+});
+
+/** The shape a PIP overlay's video is clipped to. */
+export const pipShapeSchema = z.enum(["circle", "rounded_square"], {
+  error: "shape must be one of: circle, rounded_square"
+});
+
+/** How large a PIP overlay renders, mapped to real pixels via the active brand's `pipStyle.size` scale. */
+export const pipSizeSchema = z.enum(["sm", "md", "lg"], {
+  error: "size must be one of: sm, md, lg"
+});
+
+/**
+ * A PIP overlay: a video bubble anchored to one scene (`sceneIndex`, not an
+ * absolute time range — see design.md decision #2 in the `overlays-pip`
+ * OpenSpec change). `sceneIndex` bounds-checking needs the whole parsed
+ * document (to know `scenes.length`), so it's a semantic check in
+ * `validate.ts`, not structural here — same reasoning as `duration` above.
+ */
+export const pipOverlaySchema = z.object({
+  type: z.literal("pip"),
+  // Deliberately not `.nonnegative()` here — an out-of-range sceneIndex
+  // (negative or beyond the last scene) is a semantic rule enforced by
+  // `validate()`, not a structural one, for the same "collect alongside
+  // other violations, don't short-circuit" reason `duration` isn't
+  // constrained structurally either (see this field's design.md decision #2).
+  sceneIndex: z.number().int(),
+  asset: z.string().min(1, "Asset path is required"),
+  /** Defers to the active brand's `pipStyle.defaultPosition` when omitted — same pattern `sceneLogoSchema` already uses. */
+  position: placementSchema.optional(),
+  shape: pipShapeSchema.default("circle"),
+  size: pipSizeSchema.default("md"),
+  audio: pipAudioSchema
+});
+
+/** An overlay is a discriminated union on `type` — `"pip"` is the only variant this phase, but the shape leaves room for future overlay types (e.g. a music bed) without changing `overlays`'s own shape. */
+export const overlaySchema = z.discriminatedUnion("type", [pipOverlaySchema]);
+
 /** The Video Specification's schema version. A future version adds a new literal, not a mutation of this one. */
 export const videoSpecVersionSchema = z.literal("1");
 
@@ -167,7 +208,9 @@ export const videoSpecSchema = z
      * keeps working unchanged.
      */
     brand: z.string().min(1).default("default"),
-    scenes: z.array(sceneSchema).min(1, "At least one scene is required")
+    scenes: z.array(sceneSchema).min(1, "At least one scene is required"),
+    /** Scene-anchored layers rendered on top of the scene timeline — sibling to `scenes`, not nested inside them. See `overlaySchema`. */
+    overlays: z.array(overlaySchema).optional()
   })
   .check((ctx) => {
     const firstScene = ctx.value.scenes[0];

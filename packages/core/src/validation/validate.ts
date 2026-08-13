@@ -119,6 +119,14 @@ function toStructuredError(issue: core.$ZodIssue, rawSpec: unknown): StructuredE
     };
   }
 
+  if (issuePath.startsWith("overlays.") && issuePath.endsWith(".position") && isInvalidValue) {
+    return {
+      code: "UNSUPPORTED_OVERLAY_POSITION",
+      message: `Overlay position must be one of: ${SUPPORTED_PLACEMENTS.join(", ")}`,
+      path: issuePath
+    };
+  }
+
   return { code: "MALFORMED_SPEC", message: issue.message, path: issuePath || undefined };
 }
 
@@ -199,6 +207,23 @@ function collectSemanticErrors(spec: VideoSpec, specDir: string): StructuredErro
           path: `${scenePath}.motion.focalPoint.${outOfBoundsAxis}`
         });
       }
+    }
+  });
+
+  spec.overlays?.forEach((overlay, index) => {
+    const overlayPath = `overlays.${index}`;
+
+    if (overlay.sceneIndex < 0 || overlay.sceneIndex >= spec.scenes.length) {
+      errors.push({
+        code: "OVERLAY_SCENE_INDEX_OUT_OF_RANGE",
+        message: `Overlay ${index} references sceneIndex ${overlay.sceneIndex}, but the specification has ${spec.scenes.length} scene(s) (valid range: 0-${spec.scenes.length - 1}).`,
+        path: `${overlayPath}.sceneIndex`
+      });
+    }
+
+    const assetError = checkAssetExists(overlay.asset, specDir, overlayPath);
+    if (assetError) {
+      errors.push(assetError);
     }
   });
 

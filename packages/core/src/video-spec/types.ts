@@ -10,6 +10,8 @@ import type {
   bRollSceneSchema,
   focalPointSchema,
   motionSchema,
+  overlaySchema,
+  pipOverlaySchema,
   sceneFrameSchema,
   sceneLogoSchema,
   sceneSchema,
@@ -28,4 +30,6 @@ export type ARollScene = z.infer<typeof aRollSceneSchema>;
 export type BRollAudio = z.infer<typeof bRollAudioSchema>;
 export type BRollScene = z.infer<typeof bRollSceneSchema>;
 export type Scene = z.infer<typeof sceneSchema>;
+export type PipOverlay = z.infer<typeof pipOverlaySchema>;
+export type Overlay = z.infer<typeof overlaySchema>;
 export type VideoSpec = z.infer<typeof videoSpecSchema>;

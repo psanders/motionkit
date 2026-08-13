@@ -20,7 +20,9 @@ export type StructuredErrorCode =
   | "UNSUPPORTED_LOGO_POSITION"
   | "UNSUPPORTED_MOTION_TYPE"
   | "MOTION_DIRECTION_MISMATCH"
-  | "FOCAL_POINT_OUT_OF_BOUNDS";
+  | "FOCAL_POINT_OUT_OF_BOUNDS"
+  | "OVERLAY_SCENE_INDEX_OUT_OF_RANGE"
+  | "UNSUPPORTED_OVERLAY_POSITION";
 
 /** One rule violation, with an optional path into the document and optional correction hints. */
 export interface StructuredError {

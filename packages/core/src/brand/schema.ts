@@ -92,6 +92,15 @@ const phoneFrameStyleSchema = z.object({
   shadow: z.string()
 });
 
+/** How a PIP overlay bubble is styled — a size scale (px, per `pipSizeSchema`'s `sm`/`md`/`lg`), a border, a shadow, and a default placement (overridable per overlay, same "brand supplies the default" pattern as `logo.defaultPosition`). */
+const pipStyleSchema = z.object({
+  size: scaleSchema,
+  borderWidth: z.number().nonnegative(),
+  borderColor: z.string().min(1),
+  shadow: z.string(),
+  defaultPosition: placementSchema
+});
+
 /** How a call-to-action would be styled. Validated/loaded only — no CTA scene type exists yet (see design.md Non-Goals). */
 const ctaStyleSchema = z.object({
   backgroundColor: z.string().min(1),
@@ -113,6 +122,7 @@ export const brandSchema = z.object({
   lowerThirdStyle: lowerThirdStyleSchema,
   browserFrameStyle: browserFrameStyleSchema,
   phoneFrameStyle: phoneFrameStyleSchema,
+  pipStyle: pipStyleSchema,
   ctaStyle: ctaStyleSchema,
   defaultTransitionDurationSeconds: z.number().positive()
 });

@@ -606,4 +606,169 @@ describe("videoSpecSchema", () => {
       expect(result.data.scenes[0]?.motion).to.equal(undefined);
     }
   });
+
+  it("should accept a well-formed PIP overlay", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [{ type: "pip", sceneIndex: 0, asset: "webcam.mp4", audio: "own" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+  });
+
+  it("should accept a document with no overlays", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(baseSpec());
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      expect(result.data.overlays).to.equal(undefined);
+    }
+  });
+
+  it("should reject a PIP overlay missing audio", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [{ type: "pip", sceneIndex: 0, asset: "webcam.mp4" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(false);
+  });
+
+  it("should default a PIP overlay's position to undefined (deferred to the brand at render time)", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [{ type: "pip", sceneIndex: 0, asset: "webcam.mp4", audio: "muted" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success && result.data.overlays?.[0]?.type === "pip") {
+      expect(result.data.overlays[0].position).to.equal(undefined);
+    }
+  });
+
+  it("should accept a PIP overlay with an explicit position", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [
+          { type: "pip", sceneIndex: 0, asset: "webcam.mp4", audio: "muted", position: "top_left" }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success && result.data.overlays?.[0]?.type === "pip") {
+      expect(result.data.overlays[0].position).to.equal("top_left");
+    }
+  });
+
+  it("should default a PIP overlay's shape to circle", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [{ type: "pip", sceneIndex: 0, asset: "webcam.mp4", audio: "muted" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success && result.data.overlays?.[0]?.type === "pip") {
+      expect(result.data.overlays[0].shape).to.equal("circle");
+    }
+  });
+
+  it("should accept a PIP overlay with shape: rounded_square", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [
+          {
+            type: "pip",
+            sceneIndex: 0,
+            asset: "webcam.mp4",
+            audio: "muted",
+            shape: "rounded_square"
+          }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success && result.data.overlays?.[0]?.type === "pip") {
+      expect(result.data.overlays[0].shape).to.equal("rounded_square");
+    }
+  });
+
+  it("should default a PIP overlay's size to md", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [{ type: "pip", sceneIndex: 0, asset: "webcam.mp4", audio: "muted" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success && result.data.overlays?.[0]?.type === "pip") {
+      expect(result.data.overlays[0].size).to.equal("md");
+    }
+  });
+
+  it("should accept a PIP overlay with an overridden size", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [{ type: "pip", sceneIndex: 0, asset: "webcam.mp4", audio: "muted", size: "lg" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success && result.data.overlays?.[0]?.type === "pip") {
+      expect(result.data.overlays[0].size).to.equal("lg");
+    }
+  });
+
+  it("should accept multiple PIP overlays targeting the same sceneIndex", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [
+          { type: "pip", sceneIndex: 0, asset: "webcam-1.mp4", audio: "own" },
+          { type: "pip", sceneIndex: 0, asset: "webcam-2.mp4", audio: "muted" }
+        ]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(true);
+    if (result.success) {
+      expect(result.data.overlays?.length).to.equal(2);
+    }
+  });
+
+  it("should reject an unrecognized overlay type", () => {
+    // Act
+    const result = videoSpecSchema.safeParse(
+      baseSpec({
+        overlays: [{ type: "music", sceneIndex: 0, asset: "bed.mp3" }]
+      })
+    );
+
+    // Assert
+    expect(result.success).to.equal(false);
+  });
 });

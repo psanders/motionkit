@@ -757,4 +757,235 @@ describe("render", function () {
     expect(info.width).to.equal(1080);
     expect(info.height).to.equal(1080);
   });
+
+  it("should render a PIP overlay as a visible bubble on top of its scene", async () => {
+    // Arrange — red base scene, green PIP bubble at the default (bottom_left) placement
+    const noOverlaySpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }]
+    });
+    const overlaySpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }],
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "green.mp4", audio: "muted" }]
+    });
+    const noOverlayPath = path.join(outDir, "no-pip.mp4");
+    const overlayPath = path.join(outDir, "pip-default.mp4");
+
+    // Act
+    await render(noOverlaySpec, FIXTURES_DIR, noOverlayPath);
+    await render(overlaySpec, FIXTURES_DIR, overlayPath);
+
+    // Assert — the default brand places the bubble bottom_left; a generous
+    // crop of that corner shows the overlay's presence
+    const bottomLeftCorner = { x: 0, y: 1080 - 320, width: 320, height: 320 };
+    const withoutOverlay = getPixelAtRegion(noOverlayPath, 0.5, bottomLeftCorner);
+    const withOverlay = getPixelAtRegion(overlayPath, 0.5, bottomLeftCorner);
+    expect(withOverlay).to.not.deep.equal(withoutOverlay);
+  });
+
+  it("should render a PIP overlay at an overridden position", async () => {
+    // Arrange
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }],
+      overlays: [
+        {
+          type: "pip",
+          sceneIndex: 0,
+          asset: "green.mp4",
+          audio: "muted",
+          position: "top_right"
+        }
+      ]
+    });
+    const bareSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }]
+    });
+    const outputPath = path.join(outDir, "pip-top-right.mp4");
+    const barePath = path.join(outDir, "pip-top-right-bare.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+    await render(bareSpec, FIXTURES_DIR, barePath);
+
+    // Assert
+    const topRightCorner = { x: 1920 - 320, y: 0, width: 320, height: 320 };
+    const withOverlay = getPixelAtRegion(outputPath, 0.5, topRightCorner);
+    const withoutOverlay = getPixelAtRegion(barePath, 0.5, topRightCorner);
+    expect(withOverlay).to.not.deep.equal(withoutOverlay);
+  });
+
+  it("should render a PIP overlay's shape as rounded_square distinctly from the default circle", async () => {
+    // Arrange — a circle clips its bounding box's corners more aggressively
+    // than a rounded_square, so the bubble's own corner differs between the
+    // two shapes even though the bubble's own position/size are identical
+    const circleSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }],
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "green.mp4", audio: "muted" }]
+    });
+    const roundedSquareSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }],
+      overlays: [
+        { type: "pip", sceneIndex: 0, asset: "green.mp4", audio: "muted", shape: "rounded_square" }
+      ]
+    });
+    const circlePath = path.join(outDir, "pip-circle.mp4");
+    const roundedSquarePath = path.join(outDir, "pip-rounded-square.mp4");
+
+    // Act
+    await render(circleSpec, FIXTURES_DIR, circlePath);
+    await render(roundedSquareSpec, FIXTURES_DIR, roundedSquarePath);
+
+    // Assert — a small region right at the bubble's own corner (bottom_left
+    // placement puts the bubble flush against the frame's bottom-left, so
+    // its own top-right-of-bubble corner sits inward from the frame edge)
+    const bubbleCorner = { x: 200, y: 1080 - 220, width: 24, height: 24 };
+    const circleCorner = getPixelAtRegion(circlePath, 0.5, bubbleCorner);
+    const roundedSquareCorner = getPixelAtRegion(roundedSquarePath, 0.5, bubbleCorner);
+    expect(circleCorner).to.not.deep.equal(roundedSquareCorner);
+  });
+
+  it("should render a PIP overlay at an overridden size", async () => {
+    // Arrange — the default brand's pipStyle.size.lg (320) is large enough
+    // to reach a region md (220) doesn't
+    const mdSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }],
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "green.mp4", audio: "muted" }]
+    });
+    const lgSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }],
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "green.mp4", audio: "muted", size: "lg" }]
+    });
+    const mdPath = path.join(outDir, "pip-md.mp4");
+    const lgPath = path.join(outDir, "pip-lg.mp4");
+
+    // Act
+    await render(mdSpec, FIXTURES_DIR, mdPath);
+    await render(lgSpec, FIXTURES_DIR, lgPath);
+
+    // Assert — a region beyond the md bubble's reach but within the lg bubble's
+    const beyondMdRegion = { x: 240, y: 1080 - 60, width: 40, height: 40 };
+    const mdPixel = getPixelAtRegion(mdPath, 0.5, beyondMdRegion);
+    const lgPixel = getPixelAtRegion(lgPath, 0.5, beyondMdRegion);
+    expect(lgPixel).to.not.deep.equal(mdPixel);
+  });
+
+  it("should render multiple PIP overlays on the same scene, both visible", async () => {
+    // Arrange — two overlays at distinct positions so both are independently detectable
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }],
+      overlays: [
+        { type: "pip", sceneIndex: 0, asset: "green.mp4", audio: "muted", position: "top_left" },
+        { type: "pip", sceneIndex: 0, asset: "blue.mp4", audio: "muted", position: "top_right" }
+      ]
+    });
+    const barePath = path.join(outDir, "multi-pip-bare.mp4");
+    const outputPath = path.join(outDir, "multi-pip.mp4");
+    const bareSpec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "a_roll", asset: "red.mp4", duration: 1 }]
+    });
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+    await render(bareSpec, FIXTURES_DIR, barePath);
+
+    // Assert — both corners differ from the bare rendering
+    const topLeftCorner = { x: 0, y: 0, width: 320, height: 320 };
+    const topRightCorner = { x: 1920 - 320, y: 0, width: 320, height: 320 };
+    expect(getPixelAtRegion(outputPath, 0.5, topLeftCorner)).to.not.deep.equal(
+      getPixelAtRegion(barePath, 0.5, topLeftCorner)
+    );
+    expect(getPixelAtRegion(outputPath, 0.5, topRightCorner)).to.not.deep.equal(
+      getPixelAtRegion(barePath, 0.5, topRightCorner)
+    );
+  });
+
+  it("should play a PIP overlay's own audio when audio: 'own' is declared", async () => {
+    // Arrange — a silent-otherwise scene (a_roll with no audio-continuity chain issue: a plain a_roll always carries its own audio, so use a b_roll with no preceding a_roll for true silence)
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "b_roll", asset: "green.mp4", duration: 1 }],
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "red.mp4", audio: "own" }]
+    });
+    const outputPath = path.join(outDir, "pip-own-audio.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert
+    const volume = getMeanVolumeDb(outputPath, 0.1, 0.7);
+    expect(volume).to.be.greaterThan(AUDIBLE_THRESHOLD_DB);
+  });
+
+  it("should contribute no audio when a PIP overlay declares audio: 'muted'", async () => {
+    // Arrange — b_roll with no preceding a_roll (nothing else could produce audio) plus a muted PIP
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [{ type: "b_roll", asset: "green.mp4", duration: 1 }],
+      overlays: [{ type: "pip", sceneIndex: 0, asset: "red.mp4", audio: "muted" }]
+    });
+    const outputPath = path.join(outDir, "pip-muted-audio.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert
+    const volume = getMeanVolumeDb(outputPath, 0.1, 0.7);
+    expect(volume).to.be.lessThan(AUDIBLE_THRESHOLD_DB);
+  });
+
+  it("should play both an own-audio PIP and an inherited A-roll-continuity audio simultaneously, without ducking either", async () => {
+    // Arrange — a_roll(red, tone) -> b_roll(green, continues red's audio) with an own-audio PIP on the b_roll scene
+    const spec = videoSpecSchema.parse({
+      version: "1",
+      format: "16:9",
+      fps: 10,
+      scenes: [
+        { type: "a_roll", asset: "red.mp4", duration: 1 },
+        { type: "b_roll", asset: "green.mp4", duration: 1 }
+      ],
+      overlays: [{ type: "pip", sceneIndex: 1, asset: "blue.mp4", audio: "own" }]
+    });
+    const outputPath = path.join(outDir, "pip-simultaneous-audio.mp4");
+
+    // Act
+    await render(spec, FIXTURES_DIR, outputPath);
+
+    // Assert — audible during the B-roll's screen time, whether from the
+    // inherited A-roll audio, the PIP's own audio, or (as designed) both at once
+    const duringBRoll = getMeanVolumeDb(outputPath, 1.1, 0.7);
+    expect(duringBRoll).to.be.greaterThan(AUDIBLE_THRESHOLD_DB);
+  });
 });

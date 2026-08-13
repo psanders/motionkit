@@ -50,3 +50,36 @@ export function deriveAudioSpans(spec: VideoSpec): AudioSpan[] {
 
   return spans;
 }
+
+/**
+ * Derives one audio span per `overlays[]` entry with `audio: "own"`,
+ * spanning its target scene's full frame range. Independent of
+ * `deriveAudioSpans()` above — the two lists are rendered side by side, not
+ * merged, which is what produces the deliberate "no automatic ducking"
+ * behavior if a scene has both an inherited A-roll-continuity audio span and
+ * an own-audio overlay (see design.md decision #5 in the `overlays-pip`
+ * OpenSpec change).
+ */
+export function deriveOverlayAudioSpans(spec: VideoSpec): AudioSpan[] {
+  const sceneOffsets: { fromFrame: number; durationInFrames: number }[] = [];
+  let frame = 0;
+
+  for (const scene of spec.scenes) {
+    const durationInFrames = Math.round(scene.duration * spec.fps);
+    sceneOffsets.push({ fromFrame: frame, durationInFrames });
+    frame += durationInFrames;
+  }
+
+  const spans: AudioSpan[] = [];
+
+  for (const overlay of spec.overlays ?? []) {
+    if (overlay.audio !== "own") continue;
+    const target = sceneOffsets[overlay.sceneIndex];
+    // An out-of-range sceneIndex is a validation failure `render()` already
+    // refuses to run against — `target` is always defined here in practice.
+    if (!target) continue;
+    spans.push({ asset: overlay.asset, ...target });
+  }
+
+  return spans;
+}

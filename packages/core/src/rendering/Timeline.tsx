@@ -24,8 +24,8 @@ import {
   useVideoConfig
 } from "remotion";
 import type { Brand, Placement } from "../brand/types.js";
-import type { Scene, SceneFrame, Transition, VideoSpec } from "../video-spec/types.js";
-import { deriveAudioSpans } from "./audioSpans.js";
+import type { PipOverlay, Scene, SceneFrame, Transition, VideoSpec } from "../video-spec/types.js";
+import { deriveAudioSpans, deriveOverlayAudioSpans } from "./audioSpans.js";
 import { resolveCropTransform } from "./cropTransform.js";
 import type { AssetDimensions } from "./probeAssetDimensions.js";
 
@@ -88,10 +88,28 @@ function withOffsets(spec: VideoSpec, brand: Brand): SceneWithOffset[] {
   });
 }
 
+/** Groups `overlays[]` by the scene index each one targets, so `SceneLayers` only needs the handful relevant to its own scene. */
+function groupOverlaysByScene(spec: VideoSpec): Map<number, PipOverlay[]> {
+  const bySceneIndex = new Map<number, PipOverlay[]>();
+
+  for (const overlay of spec.overlays ?? []) {
+    const existing = bySceneIndex.get(overlay.sceneIndex);
+    if (existing) {
+      existing.push(overlay);
+    } else {
+      bySceneIndex.set(overlay.sceneIndex, [overlay]);
+    }
+  }
+
+  return bySceneIndex;
+}
+
 export function Timeline({ spec, brand, assetDimensions }: TimelineProps) {
   const { width: targetWidth, height: targetHeight } = useVideoConfig();
   const scenesWithOffsets = withOffsets(spec, brand);
   const audioSpans = deriveAudioSpans(spec);
+  const overlayAudioSpans = deriveOverlayAudioSpans(spec);
+  const overlaysByScene = groupOverlaysByScene(spec);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
@@ -108,6 +126,7 @@ export function Timeline({ spec, brand, assetDimensions }: TimelineProps) {
               }
               targetWidth={targetWidth}
               targetHeight={targetHeight}
+              overlays={overlaysByScene.get(index) ?? []}
             />
           </Sequence>
         )
@@ -121,11 +140,20 @@ export function Timeline({ spec, brand, assetDimensions }: TimelineProps) {
           <Audio src={staticFile(span.asset)} />
         </Sequence>
       ))}
+      {overlayAudioSpans.map((span, index) => (
+        <Sequence
+          key={`overlay-audio-${index}`}
+          from={span.fromFrame}
+          durationInFrames={span.durationInFrames}
+        >
+          <Audio src={staticFile(span.asset)} />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 }
 
-/** Composes one scene's visual, plus its optional frame wrapper, caption overlay, and logo overlay. */
+/** Composes one scene's visual, plus its optional frame wrapper, caption overlay, logo overlay, and any PIP overlays anchored to it. */
 function SceneLayers({
   scene,
   brand,
@@ -133,7 +161,8 @@ function SceneLayers({
   transitionDurationInFrames,
   sourceDimensions,
   targetWidth,
-  targetHeight
+  targetHeight,
+  overlays
 }: {
   scene: Scene;
   brand: Brand;
@@ -142,6 +171,7 @@ function SceneLayers({
   sourceDimensions: AssetDimensions;
   targetWidth: number;
   targetHeight: number;
+  overlays: PipOverlay[];
 }) {
   const visual = (
     <SceneVisual
@@ -170,6 +200,9 @@ function SceneLayers({
           position={scene.logo === true ? brand.logo.defaultPosition : scene.logo.position}
         />
       ) : null}
+      {overlays.map((overlay, index) => (
+        <PipOverlay key={`pip-${index}`} overlay={overlay} brand={brand} />
+      ))}
     </AbsoluteFill>
   );
 }
@@ -342,6 +375,41 @@ function LogoOverlay({ brand, position }: { brand: Brand; position: Placement })
           ...POSITION_STYLES[position]
         }}
       />
+    </AbsoluteFill>
+  );
+}
+
+/** A `rounded_square` PIP's corner radius, as a fraction of its size — a fixed proportion rather than a brand token, keeping `pipStyle`'s surface small (border/shadow/color are brand identity; "how rounded" is closer to `shape` itself). */
+const PIP_ROUNDED_SQUARE_RADIUS_RATIO = 0.2;
+
+/** Renders a PIP overlay: a shape-clipped, cover-scaled video bubble on top of a scene's other layers, sized/positioned/styled per the active brand's `pipStyle` and the overlay's own `position`/`shape`/`size` overrides. No pan/zoom applied to the bubble's own content this phase — see design.md Non-Goals. */
+function PipOverlay({ overlay, brand }: { overlay: PipOverlay; brand: Brand }) {
+  const { pipStyle } = brand;
+  const position = overlay.position ?? pipStyle.defaultPosition;
+  const sizePx = pipStyle.size[overlay.size];
+  const borderRadius =
+    overlay.shape === "circle" ? sizePx / 2 : sizePx * PIP_ROUNDED_SQUARE_RADIUS_RATIO;
+
+  return (
+    <AbsoluteFill style={{ padding: brand.spacing.md }}>
+      <div
+        style={{
+          position: "absolute",
+          width: sizePx,
+          height: sizePx,
+          borderRadius,
+          overflow: "hidden",
+          border: `${pipStyle.borderWidth}px solid ${pipStyle.borderColor}`,
+          boxShadow: pipStyle.shadow,
+          ...POSITION_STYLES[position]
+        }}
+      >
+        <OffthreadVideo
+          src={staticFile(overlay.asset)}
+          muted
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      </div>
     </AbsoluteFill>
   );
 }

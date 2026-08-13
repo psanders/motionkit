@@ -32,6 +32,10 @@ make_clip "broll-1.mp4" 2 green 220
 make_clip "broll-2.mp4" 2 red 220
 make_clip "interview-2.mp4" 3 purple 880
 
+# webcam.mp4 — a PIP overlay's own footage (see overlays-spec.json), long
+# enough to cover the two scenes it appears over.
+make_clip "webcam.mp4" 5 orange 660
+
 echo "Done. Try:"
 echo "  node ../bin/run.js validate spec.json"
 echo "  node ../bin/run.js render spec.json"

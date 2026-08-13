@@ -61,6 +61,13 @@ const DEFAULT_BRAND: Brand = {
     borderRadius: 32,
     shadow: "none"
   },
+  pipStyle: {
+    size: { sm: 140, md: 220, lg: 320 },
+    borderWidth: 4,
+    borderColor: "#F8FAFC",
+    shadow: "none",
+    defaultPosition: "bottom_left"
+  },
   ctaStyle: { backgroundColor: "#4F46E5", textColor: "#F8FAFC", fontSize: 36, borderRadius: 8 },
   defaultTransitionDurationSeconds: 0.5
 };

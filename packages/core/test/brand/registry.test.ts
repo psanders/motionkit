@@ -42,6 +42,13 @@ function customBrand(): Brand {
       borderRadius: 28,
       shadow: "none"
     },
+    pipStyle: {
+      size: { sm: 130, md: 200, lg: 300 },
+      borderWidth: 3,
+      borderColor: "#ffffff",
+      shadow: "none",
+      defaultPosition: "bottom_left"
+    },
     ctaStyle: { backgroundColor: "#000000", textColor: "#ffffff", fontSize: 28, borderRadius: 4 },
     defaultTransitionDurationSeconds: 0.75
   };
