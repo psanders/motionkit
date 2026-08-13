@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="88" viewBox="0 0 280 88">
+  <rect x="4" y="4" width="80" height="80" rx="20" fill="#39E19E"/>
+  <text x="44" y="60" font-family="Poppins, system-ui, sans-serif" font-size="44" font-weight="800"
+        fill="#053204" text-anchor="middle">F</text>
+  <text x="100" y="54" font-family="Poppins, system-ui, sans-serif" font-size="40" font-weight="700"
+        fill="#053204">fonoster</text>
+</svg>

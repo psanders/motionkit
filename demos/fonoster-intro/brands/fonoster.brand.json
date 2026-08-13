@@ -1,0 +1,82 @@
+{
+  "colors": {
+    "primary": "#39E19E",
+    "secondary": "#0D3231",
+    "background": "#053204",
+    "text": "#F0FDFF",
+    "accent": "#5FCFCE"
+  },
+  "typography": {
+    "fontFamily": "Poppins, sans-serif",
+    "sizes": {
+      "title": 80,
+      "subtitle": 44,
+      "caption": 34,
+      "cta": 38
+    }
+  },
+  "logo": {
+    "asset": "fonoster-logo.svg",
+    "defaultPosition": "bottom_right"
+  },
+  "spacing": {
+    "sm": 10,
+    "md": 20,
+    "lg": 40
+  },
+  "borderRadius": {
+    "sm": 8,
+    "md": 16,
+    "lg": 32
+  },
+  "shadows": {
+    "sm": "0 1px 3px rgba(5, 50, 4, 0.4)",
+    "md": "0 6px 12px rgba(5, 50, 4, 0.45)",
+    "lg": "0 16px 32px rgba(5, 50, 4, 0.5)"
+  },
+  "captionStyle": {
+    "fontSize": 34,
+    "color": "#F0FDFF",
+    "backgroundColor": "rgba(5, 50, 4, 0.85)"
+  },
+  "titleStyle": {
+    "fontSize": 80,
+    "color": "#F0FDFF",
+    "fontWeight": "800"
+  },
+  "lowerThirdStyle": {
+    "backgroundColor": "#053204",
+    "textColor": "#F0FDFF",
+    "fontSize": 38
+  },
+  "browserFrameStyle": {
+    "chromeColor": "#E5E7EB",
+    "chromeHeightPx": 44,
+    "borderRadius": 16,
+    "shadow": "0 16px 32px rgba(5, 50, 4, 0.5)"
+  },
+  "phoneFrameStyle": {
+    "chromeColor": "#053204",
+    "chromeHeightPx": 30,
+    "borderRadius": 36,
+    "shadow": "0 16px 32px rgba(5, 50, 4, 0.5)"
+  },
+  "pipStyle": {
+    "size": {
+      "sm": 150,
+      "md": 230,
+      "lg": 330
+    },
+    "borderWidth": 0,
+    "borderColor": "#39E19E",
+    "shadow": "0 16px 32px rgba(0, 0, 0, 0.5)",
+    "defaultPosition": "bottom_left"
+  },
+  "ctaStyle": {
+    "backgroundColor": "#39E19E",
+    "textColor": "#053204",
+    "fontSize": 38,
+    "borderRadius": 24
+  },
+  "defaultTransitionDurationSeconds": 0.5
+}

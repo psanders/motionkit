@@ -1,0 +1,53 @@
+{
+  "version": "1",
+  "format": "16:9",
+  "fps": 30,
+  "brand": "fonoster",
+  "scenes": [
+    {
+      "type": "a_roll",
+      "asset": "assets/phone-intro.mp4",
+      "duration": 7
+    },
+    {
+      "type": "b_roll",
+      "asset": "assets/browser-demo-1.mov",
+      "duration": 10,
+      "frame": "browser",
+      "audio": "muted",
+      "transition": { "type": "fade" }
+    },
+    {
+      "type": "a_roll",
+      "asset": "assets/phone-describing.mp4",
+      "duration": 5,
+      "transition": { "type": "fade" }
+    },
+    {
+      "type": "b_roll",
+      "asset": "assets/browser-demo-2.mov",
+      "duration": 10,
+      "frame": "browser",
+      "audio": "muted",
+      "transition": { "type": "fade" }
+    }
+  ],
+  "overlays": [
+    {
+      "type": "pip",
+      "sceneIndex": 1,
+      "asset": "assets/phone-pip-1.mp4",
+      "size": "lg",
+      "shape": "rounded_square",
+      "audio": "own"
+    },
+    {
+      "type": "pip",
+      "sceneIndex": 3,
+      "asset": "assets/phone-pip-2.mp4",
+      "size": "lg",
+      "shape": "rounded_square",
+      "audio": "own"
+    }
+  ]
+}
