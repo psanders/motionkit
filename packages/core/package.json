@@ -20,10 +20,17 @@
   },
   "dependencies": {
     "@fonoster/logger": "^0.22.0",
+    "@remotion/bundler": "^4.0.0",
     "@remotion/cli": "^4.0.0",
     "@remotion/renderer": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "remotion": "^4.0.0",
     "winston": "^3.19.0",
     "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
   }
 }

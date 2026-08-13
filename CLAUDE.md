@@ -21,15 +21,25 @@ Remotion using a controlled vocabulary of primitives (`ARoll`, `BRoll`, `Browser
 Monorepo (npm workspaces + Lerna), three packages:
 
 - `packages/core` (`@motionkit/core`) — the shared package: Zod schemas, inferred types, error
-  classes, pure utils, and the validated-function spine (`withErrorHandlingAndValidation.ts` +
-  `ValidationError.ts`). This is also where the real MotionKit engine lands: the Video
-  Specification schema, validation, and the Remotion render pipeline. Depends on no other
-  workspace package. `mcp` and `cli` both depend on it.
+  classes, pure utils, the validated-function spine (`withErrorHandlingAndValidation.ts` +
+  `ValidationError.ts`), and the MotionKit engine itself:
+  - `src/video-spec/` — the versioned Video Specification schema (`videoSpecSchema`), `a_roll`/
+    `b_roll` scenes, and the `fade` transition.
+  - `src/validation/` — `validate(spec, specDir)`, a non-throwing, multi-error validator
+    (`ValidationResult`/`StructuredError`) for structural and semantic spec problems.
+  - `src/rendering/` — the Remotion composition (`Timeline.tsx`) and `render(spec, specDir,
+outputPath)`, a deterministic Video Specification → MP4 pipeline for the `16:9`/`9:16`
+    formats.
+
+  Depends on no other workspace package. `mcp` and `cli` both depend on it.
+
 - `packages/mcp` (`@motionkit/mcp`) — the MCP server (`@modelcontextprotocol/sdk`), the primary
   surface AI agents talk to. Currently exposes one trivial `ping` tool proving the transport
   wires up; real tools (`create_video`, `add_a_roll`, ...) come later via OpenSpec changes.
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI (`@oclif/core`, `@inquirer/prompts`) for local/
-  scripted use. Currently exposes one `motionkit ping` command that calls into `core`.
+  scripted use. Exposes `motionkit validate <spec.json>` and `motionkit render <spec.json>`
+  (both thin wrappers over `@motionkit/core`), plus the original `motionkit ping` health check.
+  See `packages/cli/examples/` for a runnable example spec.
 
 No database — MotionKit has no persistence layer of its own; asset/spec state is either passed
 through the MCP session or handled by the calling agent.
@@ -61,11 +71,10 @@ Full guide, rationale, and scaffolding: `/ps:create-validated-function`
 
 ## Build plan (where things are headed)
 
-This bootstrap only lays down the skeleton (three packages, one worked example, green
-lint/typecheck/test). The real product ships in phases via OpenSpec changes driven by
-`/ps:ship`:
+The real product ships in phases via OpenSpec changes driven by `/ps:ship`:
 
-1. **Foundation** — Video Specification schema, validation, minimal Remotion render pipeline.
+1. **Foundation** ✅ — Video Specification schema, validation, deterministic Remotion render
+   pipeline, `motionkit validate`/`motionkit render`. Landed by the `foundation` change.
 2. **Design System** — the controlled vocabulary of primitives (`ARoll`, `BRoll`, `BrowserDemo`,
    `Text`, `Transition`, ...).
 3. **Responsive Layout** — composition/layout rules across aspect ratios.

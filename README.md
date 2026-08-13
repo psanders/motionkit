@@ -4,16 +4,22 @@ A programmable, branded video engine exposed through MCP. An AI agent describes 
 natural language, an agent layer turns that into a structured, versioned Video Specification
 (Zod schema), and MotionKit validates and renders it deterministically via Remotion.
 
-This repository is currently a **bootstrap scaffold** — the baseline conventions, tooling, and
-one worked example are in place; the actual video engine ships in phases via OpenSpec changes
-(see `CLAUDE.md` for the build plan and `openspec/` for specs/proposals).
+The video engine ships in phases via OpenSpec changes (see `CLAUDE.md` for the build plan and
+`openspec/` for specs/proposals). Phase 1 (Foundation) is in: a versioned Video Specification
+schema, a non-throwing structured-error validator, and a deterministic Remotion render pipeline
+for the `16:9`/`9:16` formats, with `motionkit validate`/`motionkit render` CLI commands driving
+them.
 
 ## Packages
 
-- `packages/core` (`@motionkit/core`) — shared Zod schemas, types, error classes, utils, and
-  (eventually) the Remotion render pipeline.
-- `packages/mcp` (`@motionkit/mcp`) — the MCP server AI agents talk to.
-- `packages/cli` (`@motionkit/cli`) — an oclif CLI for local/scripted use.
+- `packages/core` (`@motionkit/core`) — shared Zod schemas, types, error classes, utils, and the
+  MotionKit engine: the Video Specification schema (`src/video-spec/`), its validator
+  (`src/validation/`), and the Remotion render pipeline (`src/rendering/`).
+- `packages/mcp` (`@motionkit/mcp`) — the MCP server AI agents talk to (still a placeholder
+  `ping` tool — the real tool surface is Phase 4).
+- `packages/cli` (`@motionkit/cli`) — an oclif CLI for local/scripted use: `motionkit validate
+<spec.json>` and `motionkit render <spec.json>`. See `packages/cli/examples/` for a runnable
+  example.
 
 ## Requirements
 
@@ -40,9 +46,9 @@ npm test
 
 ## Scripts
 
-| Script | Description |
-| :--- | :--- |
-| `npm run build` | `tsc -b` across all workspaces (project references) |
-| `npm run lint` | ESLint (flat config) across the repo |
-| `npm run typecheck` | `tsc -b --force` |
-| `npm test` | mocha unit tests in every package |
+| Script              | Description                                         |
+| :------------------ | :-------------------------------------------------- |
+| `npm run build`     | `tsc -b` across all workspaces (project references) |
+| `npm run lint`      | ESLint (flat config) across the repo                |
+| `npm run typecheck` | `tsc -b --force`                                    |
+| `npm test`          | mocha unit tests in every package                   |
