@@ -1,0 +1,29 @@
+{
+  "name": "@motionkit/core",
+  "version": "0.1.0",
+  "description": "Shared schemas, types, errors, utils, and the MotionKit rendering engine.",
+  "type": "module",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "build:watch": "tsc -b --watch",
+    "lint": "eslint .",
+    "test": "mocha"
+  },
+  "dependencies": {
+    "@fonoster/logger": "^0.22.0",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "remotion": "^4.0.0",
+    "winston": "^3.19.0",
+    "zod": "^4.0.0"
+  }
+}

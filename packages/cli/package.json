@@ -1,0 +1,34 @@
+{
+  "name": "@motionkit/cli",
+  "version": "0.1.0",
+  "description": "MotionKit command-line interface.",
+  "type": "module",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "motionkit": "./bin/run.js"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "oclif": {
+    "bin": "motionkit",
+    "dirname": "motionkit",
+    "commands": "./dist/commands",
+    "topicSeparator": " "
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "build:watch": "tsc -b --watch",
+    "dev": "nodemon --watch src --ext ts --exec \"tsx bin/dev.js\"",
+    "lint": "eslint .",
+    "test": "mocha"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
+    "@motionkit/core": "*",
+    "@oclif/core": "^4.0.0"
+  }
+}
