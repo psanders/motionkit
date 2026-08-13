@@ -18,7 +18,11 @@ source asset's actual dimensions, a `frame: "phone"` chrome decoration alongside
 and the `1:1` format. Phase 3b (Overlays / PIP) adds a scene-anchored `overlays` array — a video
 bubble (`pip`) rendered on top of its target scene, with a required `audio: "own" | "muted"` mode
 covering the common "no separate A-roll, just a narrating webcam bubble over B-roll" pattern —
-closing out Phase 3. Phase 4 (MCP tool surface) is next.
+closing out Phase 3. Phase 4 (MCP tool surface) adds `validate_video` and `render_video` to the
+MCP server alongside the existing `ping` — stateless, whole-Video-Specification-in/whole-result-
+out wrappers around `@motionkit/core`'s `validate()`/`render()`, so an MCP client can build and
+render a video through the protocol MotionKit exists to serve, not just via the CLI. See
+[Using the MCP server](#using-the-mcp-server) below.
 
 ## Packages
 
@@ -26,8 +30,8 @@ closing out Phase 3. Phase 4 (MCP tool surface) is next.
   MotionKit engine: the Brand schema and registry (`src/brand/`), the Video Specification schema
   (`src/video-spec/`), its validator (`src/validation/`), and the Remotion render pipeline
   (`src/rendering/`).
-- `packages/mcp` (`@motionkit/mcp`) — the MCP server AI agents talk to (still a placeholder
-  `ping` tool — the real tool surface is Phase 4).
+- `packages/mcp` (`@motionkit/mcp`) — the MCP server AI agents talk to: `ping` (health check),
+  `validate_video`, and `render_video`. See [Using the MCP server](#using-the-mcp-server).
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI, installable globally from this checkout
   (`npm install -g ./packages/cli`) as the `motionkit` command: `motionkit validate <spec.json>`,
   `motionkit render <spec.json>`, and `motionkit mcp-config` to register `@motionkit/mcp` with an
@@ -334,6 +338,54 @@ motionkit render --help
 During active development on the CLI package itself, `packages/cli`'s own `npm run dev` runs the
 unbuilt TypeScript directly via `tsx` (watching `src/` and re-executing `bin/dev.js`) — useful
 when iterating on the CLI's source, not needed for ordinary day-to-day usage.
+
+## Using the MCP server
+
+`packages/mcp` (`@motionkit/mcp`) is the MCP server AI agents talk to, over stdio. Register it
+with an MCP-aware client via `motionkit mcp-config` (see above), or launch it directly:
+
+```bash
+node packages/mcp/dist/index.js
+```
+
+It exposes three tools:
+
+- **`ping`** — health check; no input, returns `{ ok: true, version: string }`.
+
+- **`validate_video`** — validates a Video Specification document without rendering, via
+  `@motionkit/core`'s `validate()`. Both tools deliberately leave `spec` as an opaque JSON value
+  in their MCP `inputSchema` (not `videoSpecSchema`'s own shape) — the schema carries a
+  document-level refinement the SDK's raw-shape input schema can't express, so real validation
+  stays fully delegated to `@motionkit/core`, the single source of truth.
+
+  | Input     | Type             | Notes                                                                |
+  | :-------- | :--------------- | :------------------------------------------------------------------- |
+  | `spec`    | JSON value       | The Video Specification document to validate.                        |
+  | `specDir` | string, required | Absolute path the spec's asset paths and `brand` id resolve against. |
+
+  Returns the same `ValidationResult` shape `@motionkit/core`'s `validate()` produces:
+  `{ "valid": true }`, or `{ "valid": false, "errors": [{ "code", "message", "path"?, "suggestions"? }, ...] }`
+  listing every violation (not just the first).
+
+- **`render_video`** — validates first (identical semantics to `motionkit render`: an invalid
+  spec is never rendered), then renders to MP4 via `@motionkit/core`'s `render()`.
+
+  | Input        | Type             | Notes                                                                               |
+  | :----------- | :--------------- | :---------------------------------------------------------------------------------- |
+  | `spec`       | JSON value       | The Video Specification document to render.                                         |
+  | `specDir`    | string, required | Absolute path the spec's asset paths and `brand` id resolve against.                |
+  | `outputPath` | string, optional | Absolute path to write the MP4 to. Defaults to `<specDir>/output.mp4` when omitted. |
+
+  Returns `{ "outputPath": string }` on success, or the same `{ "valid": false, "errors": [...] }`
+  shape `validate_video` reports when the spec is invalid — no partial or corrupt file is
+  written in that case.
+
+For both tools, an invalid Video Specification is a normal, successful tool result (structured
+errors in the response content), never an MCP-level `isError: true` — that's reserved for
+genuine execution failures the caller can't fix by editing the spec (an unresolvable `specDir`,
+or an unexpected `render()` exception such as an `ffmpeg` failure). Neither tool holds any
+session state between calls: the caller passes the whole spec on every call and gets the whole
+result back, consistent with MotionKit having no persistence layer of its own (see `CLAUDE.md`).
 
 ## Workflow tooling
 

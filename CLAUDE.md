@@ -67,8 +67,22 @@ outputPath)`, a deterministic Video Specification → MP4 pipeline for the `16:9
   Depends on no other workspace package. `mcp` and `cli` both depend on it.
 
 - `packages/mcp` (`@motionkit/mcp`) — the MCP server (`@modelcontextprotocol/sdk`), the primary
-  surface AI agents talk to. Currently exposes one trivial `ping` tool proving the transport
-  wires up; real tools (`create_video`, `add_a_roll`, ...) come later via OpenSpec changes.
+  surface AI agents talk to. Exposes `ping` (a health check), `validate_video`, and
+  `render_video` — the latter two are stateless, whole-Video-Specification-in/whole-result-out
+  wrappers around `@motionkit/core`'s `validate()`/`render()`: a caller passes a `spec` (a JSON
+  document, deliberately left loosely typed in the tool's `inputSchema` since `videoSpecSchema`
+  carries a document-level refinement the SDK's raw-shape input schema can't express — all real
+  validation stays delegated to `@motionkit/core`) and a required, caller-supplied absolute
+  `specDir` assets/brand resolve against. `render_video` also takes an optional `outputPath`
+  (defaults to `<specDir>/output.mp4`) and validates before rendering, refusing an invalid spec
+  exactly like `motionkit render` does. An invalid specification is reported as a normal,
+  successful tool result (`{ valid: false, errors }`), never `isError: true` — that's reserved
+  for genuine execution failures (an unresolvable `specDir`, an unexpected `render()` exception).
+  Each tool's logic lives as a plain async function in `src/tools/` (`validateVideo.ts`,
+  `renderVideo.ts`), independent of the MCP SDK and directly unit-testable, matching the
+  original `ping.ts` pattern; `src/index.ts` only wires those functions into
+  `server.registerTool`. Incremental spec-building tools (`create_video`, `add_a_roll`, ...) are
+  deferred — these two monolithic, whole-spec tools are the entire Phase 4 surface for now.
 - `packages/cli` (`@motionkit/cli`) — an oclif CLI (`@oclif/core`, `@inquirer/prompts`) for local/
   scripted use. Exposes `motionkit validate <spec.json>` and `motionkit render <spec.json>`
   (both thin wrappers over `@motionkit/core`), plus the original `motionkit ping` health check.
@@ -117,7 +131,10 @@ The real product ships in phases via OpenSpec changes driven by `/ps:ship`:
    changes: `responsive-motion` (scene `motion`, `frame: "phone"`, the `1:1` format, and the
    crop/pan/zoom render math) and `overlays-pip` (the scene-anchored `overlays[]` array and the
    `pip` webcam-bubble overlay type).
-4. **MCP tool surface** — `create_video`, `add_a_roll`, etc., replacing the placeholder `ping`.
+4. **MCP tool surface** ✅ — `validate_video` and `render_video`, alongside the existing `ping`.
+   Landed by the `mcp-video-tools` change. Both are stateless, whole-spec-in/whole-result-out
+   wrappers over `@motionkit/core`; incremental tools (`create_video`, `add_a_roll`, ...) were
+   deliberately deferred in favor of this simpler shape.
 5. **AI Skill** — the agent-facing skill that turns natural language into a Video Specification.
 6. **Preview/Iteration** — fast feedback loop for reviewing and revising a render.
 
