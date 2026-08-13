@@ -291,7 +291,13 @@ function transitionStyle(
   }
 }
 
-/** Wraps a scene's visual content in a static chrome frame — `"browser"` or `"phone"` — styled per the matching brand token (`browserFrameStyle`/`phoneFrameStyle`). Same rendering structure for both; only the token source differs, per design.md's "simplified chrome, not a detailed bezel" decision. Pure CSS, no motion. */
+/** The classic macOS traffic-light window controls, only shown on `frame: "browser"` — a `"phone"` frame has no window chrome to speak of. Fixed OS-chrome colors, not a brand token (these read as "this is a browser window," not as brand identity). */
+const MACOS_TRAFFIC_LIGHT_COLORS = ["#FF5F57", "#FEBC2E", "#28C840"];
+const TRAFFIC_LIGHT_DOT_SIZE_PX = 22;
+const TRAFFIC_LIGHT_GAP_PX = 8;
+const TRAFFIC_LIGHT_INSET_PX = 14;
+
+/** Wraps a scene's visual content in a static chrome frame — `"browser"` or `"phone"` — styled per the matching brand token (`browserFrameStyle`/`phoneFrameStyle`). Same outer structure for both; only the token source (and the browser-only traffic lights) differ, per design.md's "simplified chrome, not a detailed bezel" decision. Pure CSS, no motion. */
 function FrameDecoration({
   brand,
   frame,
@@ -317,7 +323,31 @@ function FrameDecoration({
           flexDirection: "column"
         }}
       >
-        <div style={{ height: chromeHeightPx, flexShrink: 0, backgroundColor: chromeColor }} />
+        <div
+          style={{
+            height: chromeHeightPx,
+            flexShrink: 0,
+            backgroundColor: chromeColor,
+            display: "flex",
+            alignItems: "center",
+            gap: TRAFFIC_LIGHT_GAP_PX,
+            paddingLeft: frame === "browser" ? TRAFFIC_LIGHT_INSET_PX : 0
+          }}
+        >
+          {frame === "browser"
+            ? MACOS_TRAFFIC_LIGHT_COLORS.map((color) => (
+                <div
+                  key={color}
+                  style={{
+                    width: TRAFFIC_LIGHT_DOT_SIZE_PX,
+                    height: TRAFFIC_LIGHT_DOT_SIZE_PX,
+                    borderRadius: "50%",
+                    backgroundColor: color
+                  }}
+                />
+              ))
+            : null}
+        </div>
         <div style={{ position: "relative", flex: 1 }}>{children}</div>
       </div>
     </AbsoluteFill>
@@ -353,13 +383,26 @@ function CaptionOverlay({ text, brand }: { text: string; brand: Brand }) {
 
 const LOGO_SIZE_PX = 120;
 
-const POSITION_STYLES: Record<Placement, CSSProperties> = {
-  top_left: { top: 0, left: 0 },
-  top_right: { top: 0, right: 0 },
-  bottom_left: { bottom: 0, left: 0 },
-  bottom_right: { bottom: 0, right: 0 },
-  center: { top: "50%", left: "50%", transform: "translate(-50%, -50%)" }
-};
+/**
+ * Edge-anchored placement styles, inset by `insetPx` from the frame's edge.
+ * Deliberately NOT implemented as padding on the wrapping `AbsoluteFill` —
+ * an absolutely-positioned child's `top`/`left`/`right`/`bottom: 0` is
+ * measured from its containing block's padding edge, which coincides with
+ * the frame's true outer edge regardless of the wrapper's own padding, so a
+ * padding-based inset silently does nothing. Baking the inset directly into
+ * the offset values is what actually moves the element in from the edge.
+ */
+function positionStyles(insetPx: number): Record<Placement, CSSProperties> {
+  return {
+    top_left: { top: insetPx, left: insetPx },
+    top_right: { top: insetPx, right: insetPx },
+    bottom_left: { bottom: insetPx, left: insetPx },
+    bottom_right: { bottom: insetPx, right: insetPx },
+    center: { top: "50%", left: "50%", transform: "translate(-50%, -50%)" }
+  };
+}
+
+const LOGO_POSITION_STYLES = positionStyles(0);
 
 /** Renders the active brand's logo over a scene, at `scene.logo.position` or the brand's default placement. */
 function LogoOverlay({ brand, position }: { brand: Brand; position: Placement }) {
@@ -372,7 +415,7 @@ function LogoOverlay({ brand, position }: { brand: Brand; position: Placement })
           width: LOGO_SIZE_PX,
           height: LOGO_SIZE_PX,
           objectFit: "contain",
-          ...POSITION_STYLES[position]
+          ...LOGO_POSITION_STYLES[position]
         }}
       />
     </AbsoluteFill>
@@ -382,6 +425,11 @@ function LogoOverlay({ brand, position }: { brand: Brand; position: Placement })
 /** A `rounded_square` PIP's corner radius, as a fraction of its size — a fixed proportion rather than a brand token, keeping `pipStyle`'s surface small (border/shadow/color are brand identity; "how rounded" is closer to `shape` itself). */
 const PIP_ROUNDED_SQUARE_RADIUS_RATIO = 0.2;
 
+/** How far a PIP bubble sits in from the frame's edge. Fixed rather than a brand token for now — revisit if a brand wants a different inset. */
+const PIP_EDGE_INSET_PX = 100;
+
+const PIP_POSITION_STYLES = positionStyles(PIP_EDGE_INSET_PX);
+
 /** Renders a PIP overlay: a shape-clipped, cover-scaled video bubble on top of a scene's other layers, sized/positioned/styled per the active brand's `pipStyle` and the overlay's own `position`/`shape`/`size` overrides. No pan/zoom applied to the bubble's own content this phase — see design.md Non-Goals. */
 function PipOverlay({ overlay, brand }: { overlay: PipOverlay; brand: Brand }) {
   const { pipStyle } = brand;
@@ -389,9 +437,11 @@ function PipOverlay({ overlay, brand }: { overlay: PipOverlay; brand: Brand }) {
   const sizePx = pipStyle.size[overlay.size];
   const borderRadius =
     overlay.shape === "circle" ? sizePx / 2 : sizePx * PIP_ROUNDED_SQUARE_RADIUS_RATIO;
+  const border =
+    pipStyle.borderWidth > 0 ? `${pipStyle.borderWidth}px solid ${pipStyle.borderColor}` : "none";
 
   return (
-    <AbsoluteFill style={{ padding: brand.spacing.md }}>
+    <AbsoluteFill>
       <div
         style={{
           position: "absolute",
@@ -399,9 +449,9 @@ function PipOverlay({ overlay, brand }: { overlay: PipOverlay; brand: Brand }) {
           height: sizePx,
           borderRadius,
           overflow: "hidden",
-          border: `${pipStyle.borderWidth}px solid ${pipStyle.borderColor}`,
+          border,
           boxShadow: pipStyle.shadow,
-          ...POSITION_STYLES[position]
+          ...PIP_POSITION_STYLES[position]
         }}
       >
         <OffthreadVideo

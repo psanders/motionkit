@@ -16,6 +16,11 @@ packages/cli/examples/*.mp4
 # whichever change happens to be in flight when one is created)
 .claude/worktrees/
 
+# Personal demo footage and rendered output — real video/audio, not synthetic
+# fixtures, and never something to commit regardless of the demo's own state
+demos/*/assets/
+demos/**/*.mp4
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

@@ -852,10 +852,11 @@ describe("render", function () {
     await render(circleSpec, FIXTURES_DIR, circlePath);
     await render(roundedSquareSpec, FIXTURES_DIR, roundedSquarePath);
 
-    // Assert — a small region right at the bubble's own corner (bottom_left
-    // placement puts the bubble flush against the frame's bottom-left, so
-    // its own top-right-of-bubble corner sits inward from the frame edge)
-    const bubbleCorner = { x: 200, y: 1080 - 220, width: 24, height: 24 };
+    // Assert — a small region right at the bubble's own corner. The default
+    // brand's md bubble (220px) sits inset 100px from the bottom_left edge
+    // (see Timeline.tsx's PIP_EDGE_INSET_PX), so its bounds are x:[100,320],
+    // y:[760,980] — this probes near its own top-right-of-bubble corner.
+    const bubbleCorner = { x: 300, y: 760, width: 24, height: 24 };
     const circleCorner = getPixelAtRegion(circlePath, 0.5, bubbleCorner);
     const roundedSquareCorner = getPixelAtRegion(roundedSquarePath, 0.5, bubbleCorner);
     expect(circleCorner).to.not.deep.equal(roundedSquareCorner);
@@ -885,8 +886,12 @@ describe("render", function () {
     await render(mdSpec, FIXTURES_DIR, mdPath);
     await render(lgSpec, FIXTURES_DIR, lgPath);
 
-    // Assert — a region beyond the md bubble's reach but within the lg bubble's
-    const beyondMdRegion = { x: 240, y: 1080 - 60, width: 40, height: 40 };
+    // Assert — a region beyond the md bubble's reach but within the lg
+    // bubble's. With the 100px edge inset (see Timeline.tsx's
+    // PIP_EDGE_INSET_PX), md's bottom_left bounds are x:[100,320],
+    // y:[760,980] and lg's are x:[100,420], y:[660,980] — this probes just
+    // past md's right edge but well within lg's.
+    const beyondMdRegion = { x: 340, y: 920, width: 40, height: 40 };
     const mdPixel = getPixelAtRegion(mdPath, 0.5, beyondMdRegion);
     const lgPixel = getPixelAtRegion(lgPath, 0.5, beyondMdRegion);
     expect(lgPixel).to.not.deep.equal(mdPixel);
